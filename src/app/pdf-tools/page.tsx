@@ -46,9 +46,9 @@ const UPCOMING_TOOLS = [
   },
   {
     title: 'PDF to Images',
-    description: 'Export PDF pages as PNG or JPEG images.',
-    href: '/pdf-tools/to-images',
-    available: false,
+    description: 'Export PDF pages as JPG or PNG images at custom resolution.',
+    href: '/pdf-tools/pdf-to-jpg',
+    available: true,
   },
   {
     title: 'PDF Watermark',
