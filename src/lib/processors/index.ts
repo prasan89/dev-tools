@@ -1,54 +1,36 @@
 'use client';
 
 import { ToolProcessor } from '@/types/tool';
-import { jsonFormatterProcessor } from './json-formatter';
-import { jsonValidatorProcessor } from './json-validator';
-import { jsonMinifierProcessor } from './json-minifier';
-import { jsonDiffProcessor } from './json-diff';
-import { base64EncoderProcessor } from './base64-encoder';
-import { base64DecoderProcessor } from './base64-decoder';
-import { urlEncoderProcessor } from './url-encoder';
-import { urlDecoderProcessor } from './url-decoder';
-import { htmlEncoderProcessor } from './html-encoder';
-import { htmlDecoderProcessor } from './html-decoder';
-import { jwtDecoderProcessor } from './jwt-decoder';
-import { uuidGeneratorProcessor } from './uuid-generator';
-import { uuidValidatorProcessor } from './uuid-validator';
-import { passwordGeneratorProcessor } from './password-generator';
-import { unixTimestampConverterProcessor } from './unix-timestamp-converter';
-import { timestampToDateProcessor } from './timestamp-to-date';
-import { regexTesterProcessor } from './regex-tester';
-import { sqlFormatterProcessor } from './sql-formatter';
-import { xmlFormatterProcessor } from './xml-formatter';
-import { yamlFormatterProcessor } from './yaml-formatter';
-import { yamlToJsonProcessor } from './yaml-to-json';
 
-const processorRegistry: Record<string, ToolProcessor> = {
-  'json-formatter': jsonFormatterProcessor,
-  'json-validator': jsonValidatorProcessor,
-  'json-minifier': jsonMinifierProcessor,
-  'json-diff': jsonDiffProcessor,
-  'base64-encoder': base64EncoderProcessor,
-  'base64-decoder': base64DecoderProcessor,
-  'url-encoder': urlEncoderProcessor,
-  'url-decoder': urlDecoderProcessor,
-  'html-encoder': htmlEncoderProcessor,
-  'html-decoder': htmlDecoderProcessor,
-  'jwt-decoder': jwtDecoderProcessor,
-  'uuid-generator': uuidGeneratorProcessor,
-  'uuid-validator': uuidValidatorProcessor,
-  'password-generator': passwordGeneratorProcessor,
-  'unix-timestamp-converter': unixTimestampConverterProcessor,
-  'timestamp-to-date': timestampToDateProcessor,
-  'regex-tester': regexTesterProcessor,
-  'sql-formatter': sqlFormatterProcessor,
-  'xml-formatter': xmlFormatterProcessor,
-  'yaml-formatter': yamlFormatterProcessor,
-  'yaml-to-json': yamlToJsonProcessor,
+// Each entry is a thunk that dynamic-imports exactly one processor module.
+// Next.js/Turbopack splits each import() into its own chunk so heavy deps
+// (sql-formatter, js-yaml) are only fetched when the matching tool page loads.
+const processorLoaders: Record<string, () => Promise<ToolProcessor>> = {
+  'json-formatter':           () => import('./json-formatter').then(m => m.jsonFormatterProcessor),
+  'json-validator':           () => import('./json-validator').then(m => m.jsonValidatorProcessor),
+  'json-minifier':            () => import('./json-minifier').then(m => m.jsonMinifierProcessor),
+  'json-diff':                () => import('./json-diff').then(m => m.jsonDiffProcessor),
+  'base64-encoder':           () => import('./base64-encoder').then(m => m.base64EncoderProcessor),
+  'base64-decoder':           () => import('./base64-decoder').then(m => m.base64DecoderProcessor),
+  'url-encoder':              () => import('./url-encoder').then(m => m.urlEncoderProcessor),
+  'url-decoder':              () => import('./url-decoder').then(m => m.urlDecoderProcessor),
+  'html-encoder':             () => import('./html-encoder').then(m => m.htmlEncoderProcessor),
+  'html-decoder':             () => import('./html-decoder').then(m => m.htmlDecoderProcessor),
+  'jwt-decoder':              () => import('./jwt-decoder').then(m => m.jwtDecoderProcessor),
+  'uuid-generator':           () => import('./uuid-generator').then(m => m.uuidGeneratorProcessor),
+  'uuid-validator':           () => import('./uuid-validator').then(m => m.uuidValidatorProcessor),
+  'password-generator':       () => import('./password-generator').then(m => m.passwordGeneratorProcessor),
+  'unix-timestamp-converter': () => import('./unix-timestamp-converter').then(m => m.unixTimestampConverterProcessor),
+  'timestamp-to-date':        () => import('./timestamp-to-date').then(m => m.timestampToDateProcessor),
+  'regex-tester':             () => import('./regex-tester').then(m => m.regexTesterProcessor),
+  'sql-formatter':            () => import('./sql-formatter').then(m => m.sqlFormatterProcessor),
+  'xml-formatter':            () => import('./xml-formatter').then(m => m.xmlFormatterProcessor),
+  'yaml-formatter':           () => import('./yaml-formatter').then(m => m.yamlFormatterProcessor),
+  'yaml-to-json':             () => import('./yaml-to-json').then(m => m.yamlToJsonProcessor),
 };
 
-export function getProcessor(toolId: string): ToolProcessor | undefined {
-  return processorRegistry[toolId];
+export async function getProcessor(toolId: string): Promise<ToolProcessor | undefined> {
+  const loader = processorLoaders[toolId];
+  if (!loader) return undefined;
+  return loader();
 }
-
-

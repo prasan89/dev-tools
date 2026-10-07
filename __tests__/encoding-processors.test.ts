@@ -441,8 +441,8 @@ describe('M4 registry entries', () => {
       expect(getToolById(id)?.seoDescription.trim().length).toBeGreaterThan(0);
     });
 
-    it(`${id} has a processor attached`, () => {
-      expect(getProcessor(id)).toBeDefined();
+    it(`${id} has a processor attached`, async () => {
+      expect(await getProcessor(id)).toBeDefined();
     });
   });
 

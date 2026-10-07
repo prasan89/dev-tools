@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { ToolDefinition, ToolInput as ToolInputType, ToolResult, ToolOptionControl } from '@/types/tool';
+import { useState, useCallback, useEffect } from 'react';
+import { ToolDefinition, ToolInput as ToolInputType, ToolResult, ToolOptionControl, ToolProcessor } from '@/types/tool';
 import { getProcessor } from '@/lib/processors/index';
 import { ToolInput } from '@/components/ui/ToolInput';
 import { ToolOutput } from '@/components/ui/ToolOutput';
@@ -30,12 +30,24 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
   const [secondaryInput, setSecondaryInput] = useState('');
   const [result, setResult] = useState<ToolResult | null>(null);
   const [hasRun, setHasRun] = useState(false);
+  const [processor, setProcessor] = useState<ToolProcessor | undefined>(undefined);
+  const [processorLoading, setProcessorLoading] = useState(true);
 
-  const processor = getProcessor(tool.id);
+  useEffect(() => {
+    let cancelled = false;
+    getProcessor(tool.id).then((p) => {
+      if (!cancelled) {
+        setProcessor(p);
+        if (p?.optionControls) {
+          setOptions(buildDefaultOptions(p.optionControls));
+        }
+        setProcessorLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [tool.id]);
 
-  const [options, setOptions] = useState<Record<string, unknown>>(
-    () => buildDefaultOptions(processor?.optionControls)
-  );
+  const [options, setOptions] = useState<Record<string, unknown>>({});
 
   const runProcessor = useCallback(
     (inputValue: string, secondaryValue?: string, opts?: Record<string, unknown>) => {
@@ -118,6 +130,11 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
   const outputValue = result?.output?.value ?? '';
   const hasOutput = !!outputValue && !result?.error;
   const showActions = !!processor;
+
+  // No processor = coming-soon state
+  if (processorLoading) {
+    return <ProcessorSkeleton />;
+  }
 
   // No processor = coming-soon state
   if (!processor) {
@@ -345,7 +362,24 @@ function OptionControls({ controls, values, onChange }: OptionControlsProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Coming-soon state (shown when processor is undefined)
+// Loading skeleton — shown while the processor chunk is being fetched
+// ---------------------------------------------------------------------------
+
+function ProcessorSkeleton() {
+  return (
+    <div className="space-y-4 animate-pulse" aria-busy="true" aria-label="Loading tool">
+      <div className="h-8 w-32 rounded bg-gray-200 dark:bg-gray-700" />
+      <div className="h-40 rounded-lg bg-gray-200 dark:bg-gray-700" />
+      <div className="flex gap-2">
+        <div className="h-8 w-20 rounded-lg bg-gray-200 dark:bg-gray-700" />
+        <div className="h-8 w-28 rounded-lg bg-gray-200 dark:bg-gray-700" />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Coming-soon state (shown when processor is undefined after load)
 // ---------------------------------------------------------------------------
 
 function ComingSoon({ tool }: { tool: ToolDefinition }) {

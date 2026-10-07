@@ -605,8 +605,8 @@ describe('M6 registry entries', () => {
       expect(getToolById(id)?.seoDescription.trim().length).toBeGreaterThan(0);
     });
 
-    it(`${id} has a processor`, () => {
-      expect(getProcessor(id)).toBeDefined();
+    it(`${id} has a processor`, async () => {
+      expect(await getProcessor(id)).toBeDefined();
     });
   });
 
