@@ -197,8 +197,8 @@ describe('searchTools', () => {
   it('finds encoder tools with "encode"', () => {
     const results = searchTools('encode');
     const slugs = results.map((t) => t.slug);
-    // base64, url-encode, html-encode all contain encode in keywords/name
-    expect(slugs.some((s) => ['base64', 'url-encode', 'html-encode'].includes(s))).toBe(true);
+    // base64-encoder, url-encoder, html-encoder all contain encode in keywords/name
+    expect(slugs.some((s) => ['base64-encoder', 'url-encoder', 'html-encoder'].includes(s))).toBe(true);
   });
 });
 
