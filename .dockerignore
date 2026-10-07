@@ -1,0 +1,14 @@
+.git
+.next
+node_modules
+npm-debug.log*
+.env*
+!.env.example
+*.test.ts
+*.test.tsx
+__tests__
+.eslintrc*
+eslint.config.mjs
+jest.config.ts
+README.md
+AGENTS.md
