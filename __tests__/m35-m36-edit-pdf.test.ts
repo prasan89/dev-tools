@@ -36,6 +36,9 @@ function makePdfFile(name = 'test.pdf', pageCount = 1): PdfFile {
     file: new File([bytes.buffer as ArrayBuffer], name, { type: 'application/pdf' }),
     pageCount,
     objectUrl: 'blob:test',
+    isPasswordProtected: false,
+    isCorrupted: false,
+    loadedAt: 0,
   };
 }
 
