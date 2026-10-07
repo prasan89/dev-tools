@@ -71,7 +71,7 @@ export interface ToolResult {
 
 // Declarative UI controls rendered above the action bar.
 // Values are collected and passed into ToolInput.options.
-export type ToolOptionControlType = 'checkbox' | 'select';
+export type ToolOptionControlType = 'checkbox' | 'select' | 'text' | 'textarea';
 
 export interface ToolOptionControl {
   key: string;
@@ -82,6 +82,10 @@ export interface ToolOptionControl {
   options?: Array<{ value: string; label: string }>;
   // Checkbox group heading (optional, for visual grouping)
   group?: string;
+  // For text/textarea inputs
+  placeholder?: string;
+  /** Show this control only when another option matches a value */
+  showWhen?: { key: string; value: string };
 }
 
 export interface ToolProcessor {

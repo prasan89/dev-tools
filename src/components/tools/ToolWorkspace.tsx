@@ -396,24 +396,62 @@ function OptionControls({ controls, values, onChange }: OptionControlsProps) {
 
   return (
     <div className="flex flex-wrap items-center gap-4 rounded-xl border border-[#E5E2DC] bg-white px-4 py-3">
-      {ungrouped.map((c) =>
-        c.type === 'select' ? (
-          <div key={c.key} className="flex items-center gap-2">
-            <label htmlFor={`opt-${c.key}`} className="text-xs font-medium text-gray-600 whitespace-nowrap">
-              {c.label}
-            </label>
-            <select
-              id={`opt-${c.key}`}
-              value={String(values[c.key] ?? c.defaultValue)}
-              onChange={(e) => onChange(c.key, e.target.value)}
-              className="rounded-lg border border-[#E5E2DC] bg-white px-2.5 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
-            >
-              {c.options?.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </div>
-        ) : (
+      {ungrouped.map((c) => {
+        if (c.showWhen && String(values[c.showWhen.key] ?? '') !== c.showWhen.value) return null;
+        if (c.type === 'select') {
+          return (
+            <div key={c.key} className="flex items-center gap-2">
+              <label htmlFor={`opt-${c.key}`} className="text-xs font-medium text-gray-600 whitespace-nowrap">
+                {c.label}
+              </label>
+              <select
+                id={`opt-${c.key}`}
+                value={String(values[c.key] ?? c.defaultValue)}
+                onChange={(e) => onChange(c.key, e.target.value)}
+                className="rounded-lg border border-[#E5E2DC] bg-white px-2.5 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
+              >
+                {c.options?.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+          );
+        }
+        if (c.type === 'text') {
+          return (
+            <div key={c.key} className="flex items-center gap-2">
+              <label htmlFor={`opt-${c.key}`} className="text-xs font-medium text-gray-600 whitespace-nowrap">
+                {c.label}
+              </label>
+              <input
+                id={`opt-${c.key}`}
+                type="text"
+                value={String(values[c.key] ?? c.defaultValue)}
+                placeholder={c.placeholder ?? ''}
+                onChange={(e) => onChange(c.key, e.target.value)}
+                className="rounded-lg border border-[#E5E2DC] bg-white px-2.5 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400 w-40"
+              />
+            </div>
+          );
+        }
+        if (c.type === 'textarea') {
+          return (
+            <div key={c.key} className="flex flex-col gap-1 w-full">
+              <label htmlFor={`opt-${c.key}`} className="text-xs font-medium text-gray-600 whitespace-nowrap">
+                {c.label}
+              </label>
+              <textarea
+                id={`opt-${c.key}`}
+                value={String(values[c.key] ?? c.defaultValue)}
+                placeholder={c.placeholder ?? ''}
+                onChange={(e) => onChange(c.key, e.target.value)}
+                rows={3}
+                className="rounded-lg border border-[#E5E2DC] bg-white px-2.5 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400 w-full"
+              />
+            </div>
+          );
+        }
+        return (
           <label key={c.key} className="flex items-center gap-1.5 cursor-pointer select-none">
             <input
               type="checkbox"
@@ -423,8 +461,8 @@ function OptionControls({ controls, values, onChange }: OptionControlsProps) {
             />
             <span className="text-xs text-gray-600">{c.label}</span>
           </label>
-        )
-      )}
+        );
+      })}
       {Array.from(groups.entries()).map(([groupName, groupControls]) => (
         <fieldset key={groupName} className="flex items-center gap-1.5">
           <legend className="text-xs font-medium text-gray-400 mr-1.5">{groupName}:</legend>
