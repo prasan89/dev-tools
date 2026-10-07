@@ -122,6 +122,42 @@ const UPCOMING_TOOLS = [
     href: '/pdf-tools/unlock-pdf',
     available: true,
   },
+  {
+    title: 'Redact PDF',
+    description: 'Black out sensitive text and regions in a PDF. Draw redaction boxes over any area.',
+    href: '/pdf-tools/redact-pdf',
+    available: true,
+  },
+  {
+    title: 'Compare PDFs',
+    description: 'Compare two PDF documents side by side and highlight text differences page by page.',
+    href: '/pdf-tools/compare-pdf',
+    available: true,
+  },
+  {
+    title: 'Repair PDF',
+    description: 'Re-serialize a PDF to fix minor structural issues and cross-reference table errors.',
+    href: '/pdf-tools/repair-pdf',
+    available: true,
+  },
+  {
+    title: 'Convert to PDF/A',
+    description: 'Convert a PDF to PDF/A format for long-term archiving. Best-effort browser-based conversion.',
+    href: '/pdf-tools/pdf-a',
+    available: true,
+  },
+  {
+    title: 'Create PDF',
+    description: 'Create a blank PDF document with custom page size, orientation, and count.',
+    href: '/pdf-tools/create-pdf',
+    available: true,
+  },
+  {
+    title: 'Scan / Image to PDF',
+    description: 'Convert scanned images and photos to a PDF. Reorder pages, rotate, and apply grayscale.',
+    href: '/pdf-tools/scan-to-pdf',
+    available: true,
+  },
 ];
 
 export default function PdfToolsPage() {
