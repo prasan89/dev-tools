@@ -158,6 +158,66 @@ const UPCOMING_TOOLS = [
     href: '/pdf-tools/scan-to-pdf',
     available: true,
   },
+  {
+    title: 'PDF to Text',
+    description: 'Extract all text from a PDF. Copy or download the plain text. Your file stays in the browser.',
+    href: '/pdf-tools/pdf-to-text',
+    available: true,
+  },
+  {
+    title: 'PDF to Markdown',
+    description: 'Convert PDF text content to Markdown format with headings and lists inferred from structure.',
+    href: '/pdf-tools/pdf-to-markdown',
+    available: true,
+  },
+  {
+    title: 'PDF to HTML',
+    description: 'Convert PDF pages to a standalone HTML file with embedded page images.',
+    href: '/pdf-tools/pdf-to-html',
+    available: true,
+  },
+  {
+    title: 'PDF to SVG',
+    description: 'Convert PDF pages to SVG vector files. Download each page as an individual SVG.',
+    href: '/pdf-tools/pdf-to-svg',
+    available: true,
+  },
+  {
+    title: 'PDF to WebP',
+    description: 'Export PDF pages as WebP images at custom scale and quality. No uploads required.',
+    href: '/pdf-tools/pdf-to-webp',
+    available: true,
+  },
+  {
+    title: 'HTML to PDF',
+    description: 'Convert an HTML snippet or paste HTML and print it to PDF using your browser.',
+    href: '/pdf-tools/html-to-pdf',
+    available: true,
+  },
+  {
+    title: 'Web Page to PDF',
+    description: 'Enter a URL and open the page for printing to PDF directly in your browser.',
+    href: '/pdf-tools/webpage-to-pdf',
+    available: true,
+  },
+  {
+    title: 'OCR — Scan to Text',
+    description: 'Run optical character recognition on a scanned PDF using Tesseract.js. No server, full privacy.',
+    href: '/pdf-tools/ocr',
+    available: true,
+  },
+  {
+    title: 'OCR to Searchable PDF',
+    description: 'Add a hidden text layer to a scanned PDF so it becomes searchable and copyable.',
+    href: '/pdf-tools/ocr-searchable-pdf',
+    available: true,
+  },
+  {
+    title: 'OCR to Extracted Text',
+    description: 'Extract text from a scanned PDF via OCR and download as a plain .txt file.',
+    href: '/pdf-tools/ocr-text',
+    available: true,
+  },
 ];
 
 export default function PdfToolsPage() {

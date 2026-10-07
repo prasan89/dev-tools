@@ -22,7 +22,8 @@
     "razorpay": "^2.9.8",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "sql-formatter": "^15.9.0"
+    "sql-formatter": "^15.9.0",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
