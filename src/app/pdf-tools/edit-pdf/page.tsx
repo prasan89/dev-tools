@@ -10,6 +10,7 @@ import type { PdfFile } from '@/types/pdf';
 import type {
   EditorObject, TextObject, ImageObject, RectObject,
   EllipseObject, LineObject, ArrowObject, AnnotationObject, StrokeObject, WhiteoutObject,
+  StickyNoteObject, CalloutObject,
   EditOutcome, FontFamily, TextAlign, AnnotationType, ArrowheadStyle,
 } from '@/lib/pdf/editPdf';
 import {
@@ -29,7 +30,7 @@ import type { EditorState, StrokePoint } from '@/lib/pdf/editPdf';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type SaveState = 'idle' | 'saving' | 'done' | 'error';
-type ToolMode = 'select' | 'text' | 'image' | 'rect' | 'ellipse' | 'line' | 'arrow' | 'highlight' | 'underline' | 'strikethrough' | 'pen' | 'whiteout';
+type ToolMode = 'select' | 'text' | 'image' | 'rect' | 'ellipse' | 'line' | 'arrow' | 'highlight' | 'underline' | 'strikethrough' | 'pen' | 'whiteout' | 'sticky' | 'callout';
 
 interface PageInfo {
   number: number;
@@ -247,6 +248,78 @@ function TextEditModal({
   );
 }
 
+// ─── Annotation comment edit modal (sticky note / callout) ────────────────────
+
+function AnnotEditModal({
+  obj,
+  onSave,
+  onClose,
+}: {
+  obj: StickyNoteObject | CalloutObject;
+  onSave: (patch: Partial<StickyNoteObject> | Partial<CalloutObject>) => void;
+  onClose: () => void;
+}) {
+  const isSticky = obj.type === 'sticky';
+  const initComment = isSticky ? (obj as StickyNoteObject).comment : (obj as CalloutObject).text;
+  const initColor = isSticky ? (obj as StickyNoteObject).color : (obj as CalloutObject).bgColor;
+  const initFontSize = isSticky ? 9 : (obj as CalloutObject).fontSize;
+
+  const [comment, setComment] = useState(initComment);
+  const [color, setColor] = useState(initColor);
+  const [fontSize, setFontSize] = useState(initFontSize);
+  const [textColor, setTextColor] = useState(isSticky ? '#111111' : (obj as CalloutObject).color);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => { taRef.current?.focus(); }, []);
+
+  const handleSave = () => {
+    if (isSticky) {
+      onSave({ comment, color } as Partial<StickyNoteObject>);
+    } else {
+      onSave({ text: comment, bgColor: color, fontSize, color: textColor } as Partial<CalloutObject>);
+    }
+    onClose();
+  };
+
+  return (
+    <div role="dialog" aria-modal="true" aria-label={isSticky ? 'Edit sticky note' : 'Edit callout'}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: 'white', borderRadius: 12, padding: '1.5rem', width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: '0.75rem', boxShadow: '0 25px 50px rgba(0,0,0,0.3)' }}>
+        <h2 className="text-base font-semibold text-gray-900">{isSticky ? 'Edit Sticky Note' : 'Edit Callout'}</h2>
+        <textarea ref={taRef} value={comment} onChange={(e) => setComment(e.target.value)} rows={4}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
+          aria-label="Comment text"
+          placeholder={isSticky ? 'Add a note…' : 'Callout text…'} />
+        <div className="flex flex-wrap gap-3 items-center">
+          <label className="flex items-center gap-1.5 text-xs text-gray-600">
+            {isSticky ? 'Note color' : 'Background'}
+            <input type="color" value={color} onChange={(e) => setColor(e.target.value)}
+              className="w-8 h-7 rounded border border-gray-300 p-0.5 cursor-pointer" />
+          </label>
+          {!isSticky && (
+            <>
+              <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                Text color
+                <input type="color" value={textColor} onChange={(e) => setTextColor(e.target.value)}
+                  className="w-8 h-7 rounded border border-gray-300 p-0.5 cursor-pointer" />
+              </label>
+              <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                Size
+                <input type="number" value={fontSize} onChange={(e) => setFontSize(Math.max(6, Math.min(72, Number(e.target.value))))}
+                  min={6} max={72} className="w-14 rounded border border-gray-300 px-2 py-1 text-sm" />
+              </label>
+            </>
+          )}
+        </div>
+        <div className="flex justify-end gap-2 pt-1">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+          <button onClick={handleSave} className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">Apply</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Contextual style panel for selected object ────────────────────────────────
 
 function StylePanel({
@@ -385,6 +458,40 @@ function StylePanel({
     );
   }
 
+  if (obj.type === 'sticky') {
+    const sn = obj as StickyNoteObject;
+    return (
+      <div className="flex flex-wrap gap-2 items-center px-1 py-1 text-xs">
+        <span className="text-gray-500 font-medium">Sticky Note:</span>
+        <label className="flex items-center gap-1">Color <input type="color" value={sn.color} onChange={(e) => onUpdate(sn.id, { color: e.target.value } as Partial<StickyNoteObject>)} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
+        <label className="flex items-center gap-1">Opacity
+          <input type="range" value={Math.round(sn.opacity * 100)} onChange={(e) => onUpdate(sn.id, { opacity: Number(e.target.value) / 100 } as Partial<StickyNoteObject>)} min={20} max={100} className="w-16" />
+        </label>
+      </div>
+    );
+  }
+
+  if (obj.type === 'callout') {
+    const co = obj as CalloutObject;
+    return (
+      <div className="flex flex-wrap gap-2 items-center px-1 py-1 text-xs">
+        <span className="text-gray-500 font-medium">Callout:</span>
+        <label className="flex items-center gap-1">Bg <input type="color" value={co.bgColor} onChange={(e) => onUpdate(co.id, { bgColor: e.target.value } as Partial<CalloutObject>)} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
+        <label className="flex items-center gap-1">Text <input type="color" value={co.color} onChange={(e) => onUpdate(co.id, { color: e.target.value } as Partial<CalloutObject>)} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
+        <label className="flex items-center gap-1">Border <input type="color" value={co.borderColor} onChange={(e) => onUpdate(co.id, { borderColor: e.target.value } as Partial<CalloutObject>)} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
+        <label className="flex items-center gap-1">Border W
+          <input type="number" value={co.borderWidth} onChange={(e) => onUpdate(co.id, { borderWidth: Math.max(0, Number(e.target.value)) } as Partial<CalloutObject>)} min={0} max={10} className="w-12 rounded border border-gray-300 px-1 py-0.5" />
+        </label>
+        <label className="flex items-center gap-1">Size
+          <input type="number" value={co.fontSize} onChange={(e) => onUpdate(co.id, { fontSize: Math.max(6, Math.min(72, Number(e.target.value))) } as Partial<CalloutObject>)} min={6} max={72} className="w-12 rounded border border-gray-300 px-1 py-0.5" />
+        </label>
+        <label className="flex items-center gap-1">Opacity
+          <input type="range" value={Math.round(co.opacity * 100)} onChange={(e) => onUpdate(co.id, { opacity: Number(e.target.value) / 100 } as Partial<CalloutObject>)} min={20} max={100} className="w-16" />
+        </label>
+      </div>
+    );
+  }
+
   return null;
 }
 
@@ -422,6 +529,8 @@ export default function EditPdfPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [toolMode, setToolMode] = useState<ToolMode>('select');
   const [textEditId, setTextEditId] = useState<string | null>(null);
+  const [annotEditId, setAnnotEditId] = useState<string | null>(null);
+  const [showAnnotPanel, setShowAnnotPanel] = useState(false);
   const [drawState, setDrawState] = useState<DrawState | null>(null);
   const [pdfTextItems, setPdfTextItems] = useState<PdfTextItem[]>([]);
   const [hoveredTextId, setHoveredTextId] = useState<string | null>(null);
@@ -656,6 +765,73 @@ export default function EditPdfPage() {
           setEditorState((s) => {
             const id = s.objects[s.objects.length - 1]?.id;
             if (id) { setSelectedId(id); setTextEditId(id); }
+            return s;
+          });
+        }, 0);
+        setToolMode('select');
+        return;
+      }
+
+      if (toolMode === 'sticky') {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const sx = e.clientX - rect.left;
+        const sy = e.clientY - rect.top;
+        const pdfPt = screenToPdfPoint(sx, sy, pageScale, pageDims.heightPt);
+        const noteW = 120 / pageScale;
+        const noteH = 80 / pageScale;
+        const newNote: Omit<StickyNoteObject, 'zIndex'> = {
+          id: crypto.randomUUID(),
+          type: 'sticky',
+          pageIndex: currentPage - 1,
+          x: pdfPt.x, y: pdfPt.y - noteH,
+          width: noteW, height: noteH,
+          comment: '',
+          color: '#fef08a',
+          opacity: 0.95,
+        };
+        setEditorState((prev) => { pushHistory(prev); return addObject(prev, newNote); });
+        setTimeout(() => {
+          setEditorState((s) => {
+            const id = s.objects[s.objects.length - 1]?.id;
+            if (id) { setSelectedId(id); setAnnotEditId(id); }
+            return s;
+          });
+        }, 0);
+        setToolMode('select');
+        return;
+      }
+
+      if (toolMode === 'callout') {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const sx = e.clientX - rect.left;
+        const sy = e.clientY - rect.top;
+        const pdfPt = screenToPdfPoint(sx, sy, pageScale, pageDims.heightPt);
+        const bubbleW = 150 / pageScale;
+        const bubbleH = 60 / pageScale;
+        const newCallout: Omit<CalloutObject, 'zIndex'> = {
+          id: crypto.randomUUID(),
+          type: 'callout',
+          pageIndex: currentPage - 1,
+          x: pdfPt.x, y: pdfPt.y,
+          width: bubbleW, height: bubbleH,
+          tipX: pdfPt.x - 20 / pageScale, tipY: pdfPt.y - 20 / pageScale,
+          text: '',
+          fontSize: 11,
+          color: '#111111',
+          bgColor: '#ffffff',
+          borderColor: '#2563eb',
+          borderWidth: 1.5,
+          opacity: 1,
+        };
+        setEditorState((prev) => { pushHistory(prev); return addObject(prev, newCallout); });
+        setTimeout(() => {
+          setEditorState((s) => {
+            const id = s.objects[s.objects.length - 1]?.id;
+            if (id) { setSelectedId(id); setAnnotEditId(id); }
             return s;
           });
         }, 0);
@@ -1016,12 +1192,24 @@ export default function EditPdfPage() {
         <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
         {toolBtn('whiteout', '⬜ Whiteout', 'Draw whiteout cover')}
         <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
+        {toolBtn('sticky', '📝 Note', 'Click to place a sticky note')}
+        {toolBtn('callout', '💬 Callout', 'Click to place a text callout')}
+        <button
+          onClick={() => setShowAnnotPanel((v) => !v)}
+          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap ${showAnnotPanel ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+          title="Annotation panel"
+          aria-pressed={showAnnotPanel}
+        >
+          Annotations
+        </button>
+        <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
         <button onClick={undo} disabled={history.length === 0} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-40" aria-label="Undo">↩</button>
         <button onClick={redo} disabled={future.length === 0} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-40" aria-label="Redo">↪</button>
         {selectedObj && (
           <>
             <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
             {selectedObj.type === 'text' && <button onClick={() => setTextEditId(selectedId)} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Edit Text</button>}
+            {(selectedObj.type === 'sticky' || selectedObj.type === 'callout') && <button onClick={() => setAnnotEditId(selectedId)} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Edit Note</button>}
             <button onClick={() => setEditorState((s) => { pushHistory(s); return duplicateObject(s, selectedId!); })} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Dup</button>
             <button onClick={() => setEditorState((s) => bringForward(s, selectedId!))} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300" title="Bring Forward">↑</button>
             <button onClick={() => setEditorState((s) => sendBackward(s, selectedId!))} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300" title="Send Backward">↓</button>
@@ -1071,7 +1259,11 @@ export default function EditPdfPage() {
       )}
       {toolMode !== 'select' && (
         <p className="text-xs text-blue-600 dark:text-blue-400 px-1" role="status">
-          {toolMode === 'text' ? 'Click to place a text box.' : toolMode === 'pen' ? 'Draw on the page. Release to finish.' : `Draw on the page to add ${toolMode}.`}
+          {toolMode === 'text' ? 'Click to place a text box.'
+          : toolMode === 'pen' ? 'Draw on the page. Release to finish.'
+          : toolMode === 'sticky' ? 'Click to place a sticky note.'
+          : toolMode === 'callout' ? 'Click to place a text callout.'
+          : `Draw on the page to add ${toolMode}.`}
         </p>
       )}
       {/* Whiteout notice */}
@@ -1238,6 +1430,41 @@ export default function EditPdfPage() {
                   style={{ position: 'absolute', left: r.left, top: r.top, width: r.width, height: r.height, background: wo.fillColor, opacity: wo.fillOpacity * wo.opacity, border: wo.borderWidth > 0 ? `${wo.borderWidth}px solid ${wo.borderColor}` : 'none', pointerEvents: 'none', boxSizing: 'border-box' }} />
               );
             }
+            if (obj.type === 'sticky') {
+              const sn = obj as StickyNoteObject;
+              const r = pdfRectToScreen(sn.x, sn.y, sn.width, sn.height, pageScale, pageDims.heightPt);
+              const foldPx = 10;
+              return (
+                <div key={obj.id} aria-hidden="true"
+                  style={{ position: 'absolute', left: r.left, top: r.top, width: r.width, height: r.height, background: sn.color, opacity: sn.opacity, pointerEvents: 'none', boxSizing: 'border-box', borderRadius: 2, overflow: 'hidden', fontSize: Math.max(8, 9 * pageScale), fontFamily: 'Helvetica, sans-serif', color: '#111', padding: '4px 6px', lineHeight: 1.3, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  {sn.comment || <span style={{ opacity: 0.4, fontStyle: 'italic' }}>Note…</span>}
+                  <div aria-hidden="true" style={{ position: 'absolute', top: 0, right: 0, width: foldPx, height: foldPx, background: `linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.15) 50%)` }} />
+                </div>
+              );
+            }
+            if (obj.type === 'callout') {
+              const co = obj as CalloutObject;
+              const r = pdfRectToScreen(co.x, co.y, co.width, co.height, pageScale, pageDims.heightPt);
+              const tipS = { x: co.tipX * pageScale, y: (pageDims.heightPt - co.tipY) * pageScale };
+              const bubbleCx = r.left + r.width / 2;
+              const bubbleCy = r.top + r.height / 2;
+              const svgLeft = Math.min(r.left, tipS.x) - 2;
+              const svgTop = Math.min(r.top, tipS.y) - 2;
+              const svgW = Math.max(r.left + r.width, tipS.x) - svgLeft + 4;
+              const svgH = Math.max(r.top + r.height, tipS.y) - svgTop + 4;
+              return (
+                <div key={obj.id} aria-hidden="true" style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+                  {/* Pointer line */}
+                  <svg style={{ position: 'absolute', left: svgLeft, top: svgTop, width: svgW, height: svgH, overflow: 'visible', pointerEvents: 'none' }}>
+                    <line x1={bubbleCx - svgLeft} y1={bubbleCy - svgTop} x2={tipS.x - svgLeft} y2={tipS.y - svgTop} stroke={co.borderColor} strokeWidth={Math.max(co.borderWidth, 1)} opacity={co.opacity} />
+                  </svg>
+                  {/* Bubble */}
+                  <div style={{ position: 'absolute', left: r.left, top: r.top, width: r.width, height: r.height, background: co.bgColor, border: `${co.borderWidth}px solid ${co.borderColor}`, borderRadius: 6, opacity: co.opacity, boxSizing: 'border-box', fontSize: Math.max(8, co.fontSize * pageScale), fontFamily: 'Helvetica, sans-serif', color: co.color, padding: '4px 6px', lineHeight: 1.3, overflow: 'hidden', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    {co.text || <span style={{ opacity: 0.4, fontStyle: 'italic' }}>Callout…</span>}
+                  </div>
+                </div>
+              );
+            }
             return null;
           })}
 
@@ -1264,6 +1491,7 @@ export default function EditPdfPage() {
             onUpdate={handleUpdate}
             onDelete={handleDelete}
             onTextEdit={(id) => setTextEditId(id)}
+            onAnnotEdit={(id) => setAnnotEditId(id)}
             canvasWidth={canvasSize.width}
             canvasHeight={canvasSize.height}
           />
@@ -1303,9 +1531,10 @@ export default function EditPdfPage() {
           {editorState.objects.filter((o) => o.type === 'text').length} text, {' '}
           {editorState.objects.filter((o) => o.type === 'image').length} image, {' '}
           {editorState.objects.filter((o) => o.type === 'rect' || o.type === 'ellipse' || o.type === 'line' || o.type === 'arrow').length} shape, {' '}
-          {editorState.objects.filter((o) => o.type === 'highlight' || o.type === 'underline' || o.type === 'strikethrough').length} annotation, {' '}
+          {editorState.objects.filter((o) => o.type === 'highlight' || o.type === 'underline' || o.type === 'strikethrough').length} mark, {' '}
           {editorState.objects.filter((o) => o.type === 'stroke').length} stroke, {' '}
-          {editorState.objects.filter((o) => o.type === 'whiteout').length} whiteout
+          {editorState.objects.filter((o) => o.type === 'whiteout').length} whiteout, {' '}
+          {editorState.objects.filter((o) => o.type === 'sticky' || o.type === 'callout').length} note
           {' '}across {new Set(editorState.objects.map((o) => o.pageIndex)).size} page{new Set(editorState.objects.map((o) => o.pageIndex)).size !== 1 ? 's' : ''}
         </p>
       )}
@@ -1322,6 +1551,74 @@ export default function EditPdfPage() {
             }}
             onClose={() => setTextEditId(null)}
           />
+        );
+      })()}
+
+      {/* Annotation edit modal (sticky/callout) */}
+      {annotEditId && (() => {
+        const obj = editorState.objects.find((o) => o.id === annotEditId);
+        if (!obj || (obj.type !== 'sticky' && obj.type !== 'callout')) { setAnnotEditId(null); return null; }
+        return (
+          <AnnotEditModal
+            obj={obj as StickyNoteObject | CalloutObject}
+            onSave={(patch) => {
+              setEditorState((s) => { pushHistory(s); return updateObject(s, annotEditId, patch as Partial<EditorObject>); });
+            }}
+            onClose={() => setAnnotEditId(null)}
+          />
+        );
+      })()}
+
+      {/* Annotation panel */}
+      {showAnnotPanel && (() => {
+        const annotations = editorState.objects.filter((o) => o.type === 'sticky' || o.type === 'callout');
+        return (
+          <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Annotations ({annotations.length})</h3>
+              <button onClick={() => setShowAnnotPanel(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xs px-1">✕</button>
+            </div>
+            {annotations.length === 0 && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">No annotations yet. Use Note or Callout tools to add comments.</p>
+            )}
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {annotations.map((obj) => {
+                const sn = obj as StickyNoteObject;
+                const co = obj as CalloutObject;
+                const isSticky = obj.type === 'sticky';
+                const text = isSticky ? sn.comment : co.text;
+                const preview = text.slice(0, 60) + (text.length > 60 ? '…' : '');
+                const pageNum = obj.pageIndex + 1;
+                return (
+                  <div key={obj.id}
+                    className={`flex items-start gap-2 rounded-lg border px-2 py-1.5 cursor-pointer text-xs ${selectedId === obj.id ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/30' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+                    onClick={() => { setCurrentPage(pageNum); setTimeout(() => setSelectedId(obj.id), 0); }}
+                  >
+                    <span className="shrink-0 mt-0.5">{isSticky ? '📝' : '💬'}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-700 dark:text-gray-300 capitalize">{obj.type === 'sticky' ? 'Note' : 'Callout'}</span>
+                        <span className="text-gray-400 dark:text-gray-500">p.{pageNum}</span>
+                      </div>
+                      <p className="text-gray-600 dark:text-gray-400 truncate">{preview || <span className="italic opacity-50">empty</span>}</p>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setCurrentPage(pageNum); setTimeout(() => { setSelectedId(obj.id); setAnnotEditId(obj.id); }, 0); }}
+                        className="rounded px-1 py-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                        aria-label="Edit annotation"
+                      >Edit</button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDelete(obj.id); }}
+                        className="rounded px-1 py-0.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+                        aria-label="Delete annotation"
+                      >Del</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         );
       })()}
     </PdfToolLayout>

@@ -168,8 +168,50 @@ export interface WhiteoutObject {
   zIndex: number;
 }
 
+// ─── Sticky note object (M37) ─────────────────────────────────────────────────
+
+export interface StickyNoteObject {
+  id: string;
+  type: 'sticky';
+  pageIndex: number;
+  /** Position of note icon anchor (PDF coords, bottom-left origin) */
+  x: number;
+  y: number;
+  /** Width/height of expanded note card in PDF pts */
+  width: number;
+  height: number;
+  comment: string;
+  color: string;   // background color, e.g. '#fef08a'
+  opacity: number;
+  zIndex: number;
+}
+
+// ─── Callout object (M37) ─────────────────────────────────────────────────────
+
+export interface CalloutObject {
+  id: string;
+  type: 'callout';
+  pageIndex: number;
+  /** Bounding box of the callout text bubble (PDF coords) */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Tip of the callout pointer (PDF coords) */
+  tipX: number;
+  tipY: number;
+  text: string;
+  fontSize: number;
+  color: string;        // text color
+  bgColor: string;      // bubble background
+  borderColor: string;
+  borderWidth: number;
+  opacity: number;
+  zIndex: number;
+}
+
 export type ShapeObject = RectObject | EllipseObject | LineObject | ArrowObject;
-export type EditorObject = TextObject | ImageObject | ShapeObject | AnnotationObject | StrokeObject | WhiteoutObject;
+export type EditorObject = TextObject | ImageObject | ShapeObject | AnnotationObject | StrokeObject | WhiteoutObject | StickyNoteObject | CalloutObject;
 
 // ─── Editor state ─────────────────────────────────────────────────────────────
 
@@ -279,8 +321,11 @@ export function duplicateObject(state: EditorState, id: string): EditorState {
   } else if (obj.type === 'stroke') {
     const st = obj as StrokeObject;
     newObj = { ...st, id: crypto.randomUUID(), points: st.points.map((p) => ({ x: p.x + 10, y: p.y - 10 })), zIndex } as EditorObject;
+  } else if (obj.type === 'callout') {
+    const co = obj as CalloutObject;
+    newObj = { ...co, id: crypto.randomUUID(), x: co.x + 10, y: co.y - 10, tipX: co.tipX + 10, tipY: co.tipY - 10, zIndex } as EditorObject;
   } else {
-    const boxObj = obj as TextObject | ImageObject | RectObject | AnnotationObject | WhiteoutObject;
+    const boxObj = obj as TextObject | ImageObject | RectObject | AnnotationObject | WhiteoutObject | StickyNoteObject;
     newObj = { ...boxObj, id: crypto.randomUUID(), x: boxObj.x + 10, y: boxObj.y - 10, zIndex } as EditorObject;
   }
 
@@ -606,6 +651,78 @@ export async function buildEditedPdf(
           borderColor: wo.borderWidth > 0 ? rgb(br, bg, bb) : undefined,
           borderWidth: wo.borderWidth,
         });
+
+      } else if (obj.type === 'sticky') {
+        const sn = obj as StickyNoteObject;
+        const { r: fr, g: fg, b: fb } = hexToRgb(sn.color);
+        const cardW = Math.max(sn.width, 40);
+        const cardH = Math.max(sn.height, 30);
+        // Draw note card background
+        page.drawRectangle({
+          x: sn.x, y: sn.y, width: cardW, height: cardH,
+          color: rgb(fr, fg, fb),
+          opacity: sn.opacity,
+          borderColor: rgb(fr * 0.7, fg * 0.7, fb * 0.7),
+          borderWidth: 1,
+        });
+        // Draw folded corner (triangle in top-right)
+        const foldSize = 8;
+        page.drawLine({ start: { x: sn.x + cardW - foldSize, y: sn.y + cardH }, end: { x: sn.x + cardW, y: sn.y + cardH - foldSize }, thickness: 1, color: rgb(fr * 0.6, fg * 0.6, fb * 0.6), opacity: sn.opacity });
+        // Draw comment text
+        if (sn.comment.trim()) {
+          const font = await srcDoc.embedFont(StandardFonts.Helvetica);
+          const fontSize = 9;
+          const lines = sn.comment.split('\n');
+          const lineH = fontSize * 1.3;
+          const textX = sn.x + 4;
+          let textY = sn.y + cardH - fontSize - 6;
+          for (const line of lines) {
+            if (textY < sn.y + 2) break;
+            if (line.trim()) {
+              page.drawText(line, { x: textX, y: textY, font, size: fontSize, color: rgb(0.1, 0.1, 0.1), opacity: sn.opacity, maxWidth: cardW - 8 });
+            }
+            textY -= lineH;
+          }
+        }
+
+      } else if (obj.type === 'callout') {
+        const co = obj as CalloutObject;
+        const { r: br, g: bg, b: bb } = hexToRgb(co.bgColor);
+        const { r: cr, g: cg, b: cb } = hexToRgb(co.borderColor);
+        const { r: tr, g: tg, b: tb } = hexToRgb(co.color);
+        // Draw callout bubble
+        page.drawRectangle({
+          x: co.x, y: co.y, width: co.width, height: co.height,
+          color: rgb(br, bg, bb),
+          opacity: co.opacity,
+          borderColor: co.borderWidth > 0 ? rgb(cr, cg, cb) : undefined,
+          borderWidth: co.borderWidth,
+        });
+        // Draw pointer line from bubble edge to tip
+        const bubbleCx = co.x + co.width / 2;
+        const bubbleCy = co.y + co.height / 2;
+        page.drawLine({
+          start: { x: bubbleCx, y: bubbleCy },
+          end: { x: co.tipX, y: co.tipY },
+          thickness: Math.max(co.borderWidth, 1),
+          color: co.borderWidth > 0 ? rgb(cr, cg, cb) : rgb(br, bg, bb),
+          opacity: co.opacity,
+        });
+        // Draw text inside bubble
+        if (co.text.trim()) {
+          const font = await srcDoc.embedFont(StandardFonts.Helvetica);
+          const lines = co.text.split('\n');
+          const lineH = co.fontSize * 1.3;
+          const textX = co.x + 6;
+          let textY = co.y + co.height - co.fontSize - 6;
+          for (const line of lines) {
+            if (textY < co.y + 2) break;
+            if (line.trim()) {
+              page.drawText(line, { x: textX, y: textY, font, size: co.fontSize, color: rgb(tr, tg, tb), opacity: co.opacity, maxWidth: co.width - 12 });
+            }
+            textY -= lineH;
+          }
+        }
       }
     }
   }

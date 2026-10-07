@@ -4,7 +4,7 @@ import { useCallback, useRef } from 'react';
 import type {
   EditorObject, TextObject, ImageObject,
   RectObject, EllipseObject, LineObject, ArrowObject, AnnotationObject,
-  StrokeObject, WhiteoutObject,
+  StrokeObject, WhiteoutObject, StickyNoteObject, CalloutObject,
 } from '@/lib/pdf/editPdf';
 import { pdfToScreenPoint } from '@/lib/pdf/editPdf';
 
@@ -39,6 +39,7 @@ interface EditorOverlayProps {
   onUpdate: (id: string, patch: Partial<EditorObject>) => void;
   onDelete: (id: string) => void;
   onTextEdit?: (id: string) => void;
+  onAnnotEdit?: (id: string) => void;
   canvasWidth: number;
   canvasHeight: number;
 }
@@ -550,6 +551,218 @@ function StrokeHandles({
   );
 }
 
+// ─── Sticky note handle component ────────────────────────────────────────────
+
+function StickyNoteHandles({
+  obj,
+  scale,
+  pageHeightPt,
+  isSelected,
+  onSelect,
+  onUpdate,
+  onDelete,
+  onAnnotEdit,
+}: {
+  obj: StickyNoteObject;
+  scale: number;
+  pageHeightPt: number;
+  isSelected: boolean;
+  onSelect: (id: string | null) => void;
+  onUpdate: (id: string, patch: Partial<EditorObject>) => void;
+  onDelete: (id: string) => void;
+  onAnnotEdit?: (id: string) => void;
+}) {
+  const rect = pdfRectToScreen(obj.x, obj.y, obj.width, obj.height, scale, pageHeightPt);
+  const dragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    e.stopPropagation(); e.preventDefault();
+    if (!isSelected) onSelect(obj.id);
+    dragRef.current = { startX: e.clientX, startY: e.clientY, ox: obj.x, oy: obj.y };
+    (e.target as Element).setPointerCapture(e.pointerId);
+  }, [isSelected, obj, onSelect]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d) return;
+    e.preventDefault();
+    const dx = (e.clientX - d.startX) / scale;
+    const dy = -(e.clientY - d.startY) / scale;
+    onUpdate(obj.id, { x: d.ox + dx, y: d.oy + dy });
+  }, [obj, onUpdate, scale]);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    dragRef.current = null;
+    (e.target as Element).releasePointerCapture(e.pointerId);
+  }, []);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!isSelected) return;
+    const step = (e.shiftKey ? 10 : 1) / scale;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); onUpdate(obj.id, { x: obj.x - step }); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); onUpdate(obj.id, { x: obj.x + step }); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); onUpdate(obj.id, { y: obj.y + step }); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); onUpdate(obj.id, { y: obj.y - step }); }
+    else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); onDelete(obj.id); }
+    else if (e.key === 'Enter') { e.preventDefault(); onAnnotEdit?.(obj.id); }
+  }, [isSelected, obj, onDelete, onUpdate, onAnnotEdit, scale]);
+
+  const preview = obj.comment.slice(0, 40) + (obj.comment.length > 40 ? '…' : '');
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={`Sticky note: ${preview || '(empty)'}`}
+      aria-selected={isSelected}
+      style={{
+        position: 'absolute',
+        left: rect.left, top: rect.top, width: Math.max(rect.width, 24), height: Math.max(rect.height, 24),
+        outline: isSelected ? '2px solid #2563eb' : '1px dashed rgba(251,191,36,0.6)',
+        boxSizing: 'border-box',
+        cursor: 'move',
+        userSelect: 'none',
+        touchAction: 'none',
+        borderRadius: 2,
+      }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onClick={(e) => { e.stopPropagation(); onSelect(obj.id); }}
+      onDoubleClick={() => onAnnotEdit?.(obj.id)}
+      onKeyDown={handleKeyDown}
+    />
+  );
+}
+
+// ─── Callout handle component ──────────────────────────────────────────────────
+
+function CalloutHandles({
+  obj,
+  scale,
+  pageHeightPt,
+  isSelected,
+  onSelect,
+  onUpdate,
+  onDelete,
+  onAnnotEdit,
+}: {
+  obj: CalloutObject;
+  scale: number;
+  pageHeightPt: number;
+  isSelected: boolean;
+  onSelect: (id: string | null) => void;
+  onUpdate: (id: string, patch: Partial<EditorObject>) => void;
+  onDelete: (id: string) => void;
+  onAnnotEdit?: (id: string) => void;
+}) {
+  const rect = pdfRectToScreen(obj.x, obj.y, obj.width, obj.height, scale, pageHeightPt);
+  const tipScreen = pdfToScreenPoint(obj.tipX, obj.tipY, scale, pageHeightPt);
+
+  const dragRef = useRef<{
+    handle: 'move' | 'tip' | 'se';
+    startX: number; startY: number;
+    ox: number; oy: number; ow: number; oh: number;
+    otx: number; oty: number;
+  } | null>(null);
+
+  const handlePointerDown = useCallback((handle: 'move' | 'tip' | 'se', e: React.PointerEvent) => {
+    e.stopPropagation(); e.preventDefault();
+    if (!isSelected) onSelect(obj.id);
+    dragRef.current = {
+      handle, startX: e.clientX, startY: e.clientY,
+      ox: obj.x, oy: obj.y, ow: obj.width, oh: obj.height,
+      otx: obj.tipX, oty: obj.tipY,
+    };
+    (e.target as Element).setPointerCapture(e.pointerId);
+  }, [isSelected, obj, onSelect]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d) return;
+    e.preventDefault();
+    const dx = (e.clientX - d.startX) / scale;
+    const dy = -(e.clientY - d.startY) / scale;
+    if (d.handle === 'move') {
+      onUpdate(obj.id, { x: d.ox + dx, y: d.oy + dy, tipX: d.otx + dx, tipY: d.oty + dy });
+    } else if (d.handle === 'tip') {
+      onUpdate(obj.id, { tipX: d.otx + dx, tipY: d.oty + dy });
+    } else if (d.handle === 'se') {
+      onUpdate(obj.id, { width: Math.max(40 / scale, d.ow + dx), height: Math.max(20 / scale, d.oh - dy) });
+    }
+  }, [obj, onUpdate, scale]);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    dragRef.current = null;
+    (e.target as Element).releasePointerCapture(e.pointerId);
+  }, []);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!isSelected) return;
+    const step = (e.shiftKey ? 10 : 1) / scale;
+    const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+    const dy = e.key === 'ArrowUp' ? step : e.key === 'ArrowDown' ? -step : 0;
+    if (dx || dy) { e.preventDefault(); onUpdate(obj.id, { x: obj.x + dx, y: obj.y + dy, tipX: obj.tipX + dx, tipY: obj.tipY + dy }); }
+    else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); onDelete(obj.id); }
+    else if (e.key === 'Enter') { e.preventDefault(); onAnnotEdit?.(obj.id); }
+  }, [isSelected, obj, onDelete, onUpdate, onAnnotEdit, scale]);
+
+  const preview = obj.text.slice(0, 40) + (obj.text.length > 40 ? '…' : '');
+
+  return (
+    <>
+      {/* Bubble hit area */}
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label={`Callout: ${preview || '(empty)'}`}
+        aria-selected={isSelected}
+        style={{
+          position: 'absolute',
+          left: rect.left, top: rect.top, width: Math.max(rect.width, 40), height: Math.max(rect.height, 20),
+          outline: isSelected ? '2px solid #2563eb' : '1px dashed rgba(59,130,246,0.5)',
+          boxSizing: 'border-box',
+          cursor: 'move',
+          userSelect: 'none',
+          touchAction: 'none',
+          borderRadius: 4,
+        }}
+        onPointerDown={(e) => handlePointerDown('move', e)}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onClick={(e) => { e.stopPropagation(); onSelect(obj.id); }}
+        onDoubleClick={() => onAnnotEdit?.(obj.id)}
+        onKeyDown={handleKeyDown}
+      >
+        {/* SE resize handle */}
+        {isSelected && (
+          <div
+            style={{ position: 'absolute', bottom: -5, right: -5, width: 10, height: 10, background: '#2563eb', border: '2px solid white', borderRadius: 2, cursor: 'se-resize' }}
+            onPointerDown={(e) => handlePointerDown('se', e)}
+          />
+        )}
+      </div>
+      {/* Tip drag handle */}
+      {isSelected && (
+        <div
+          title="Drag callout tip"
+          style={{
+            position: 'absolute',
+            left: tipScreen.x - 7, top: tipScreen.y - 7,
+            width: 14, height: 14,
+            background: '#f59e0b', border: '2px solid white', borderRadius: '50%',
+            cursor: 'crosshair',
+            touchAction: 'none',
+          }}
+          onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); handlePointerDown('tip', e); }}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+        />
+      )}
+    </>
+  );
+}
+
 // ─── Main overlay ─────────────────────────────────────────────────────────────
 
 export function EditorOverlay({
@@ -563,6 +776,7 @@ export function EditorOverlay({
   onUpdate,
   onDelete,
   onTextEdit,
+  onAnnotEdit,
   canvasWidth,
   canvasHeight,
 }: EditorOverlayProps) {
@@ -625,6 +839,40 @@ export function EditorOverlay({
                 onSelect={onSelect}
                 onUpdate={onUpdate}
                 onDelete={onDelete}
+              />
+            </div>
+          );
+        }
+
+        if (obj.type === 'sticky') {
+          return (
+            <div key={key} style={{ pointerEvents: 'all' }}>
+              <StickyNoteHandles
+                obj={obj as StickyNoteObject}
+                scale={scale}
+                pageHeightPt={pageHeightPt}
+                isSelected={isSelected}
+                onSelect={onSelect}
+                onUpdate={onUpdate}
+                onDelete={onDelete}
+                onAnnotEdit={onAnnotEdit}
+              />
+            </div>
+          );
+        }
+
+        if (obj.type === 'callout') {
+          return (
+            <div key={key} style={{ pointerEvents: 'all' }}>
+              <CalloutHandles
+                obj={obj as CalloutObject}
+                scale={scale}
+                pageHeightPt={pageHeightPt}
+                isSelected={isSelected}
+                onSelect={onSelect}
+                onUpdate={onUpdate}
+                onDelete={onDelete}
+                onAnnotEdit={onAnnotEdit}
               />
             </div>
           );
