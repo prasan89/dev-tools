@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: 'DevToolsHub — Developer Tools That Just Work',
   description:
     'Fast, free, privacy-friendly tools for developers. JSON formatter, Base64 encoder, regex tester, UUID generator, diff checker, and more.',
+  alternates: { canonical: '/' },
 };
 
 export default function HomePage() {
