@@ -93,6 +93,14 @@ export const CATEGORIES: Category[] = [
     icon: '---',
     color: 'orange',
   },
+  {
+    id: 'data',
+    slug: 'data',
+    name: 'Data Tools',
+    description: 'CSV formatters, validators, and data transformation utilities',
+    icon: '⊞',
+    color: 'teal',
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -717,6 +725,127 @@ export const TOOLS: ToolDefinition[] = [
     seoTitle: 'Color Picker & Converter',
     seoDescription:
       'Pick colors and convert between HEX, RGB, HSL, and more. Free online color converter.',
+  },
+
+  // JSON Utilities
+  {
+    id: 'jsonpath-tester',
+    name: 'JSONPath Tester',
+    slug: 'jsonpath-tester',
+    category: 'json',
+    description: 'Test and evaluate JSONPath expressions against JSON data',
+    longDescription:
+      'Evaluate JSONPath expressions against JSON input and see matched values. Supports dot notation, bracket notation, wildcards (*), recursive descent (..), array slicing, and filters. Uses the JSONPath-Plus library.',
+    icon: '$..',
+    keywords: ['jsonpath', 'json path', 'query', 'extract', 'filter', 'json query', 'jsonpath expression', 'json selector'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['json-formatter', 'json-validator', 'json-schema-validator', 'json-sorter'],
+    popular: true,
+    isNew: true,
+    order: 7,
+    seoTitle: 'JSONPath Tester — Test JSONPath Expressions Online',
+    seoDescription:
+      'Test and evaluate JSONPath expressions against JSON data. Supports wildcards, recursive descent, filters, and array slices. Free and browser-based.',
+  },
+  {
+    id: 'json-schema-validator',
+    name: 'JSON Schema Validator',
+    slug: 'json-schema-validator',
+    category: 'json',
+    description: 'Validate JSON against a JSON Schema (draft-07)',
+    longDescription:
+      'Validate JSON data against a JSON Schema. Supports JSON Schema draft-07 including required properties, types, arrays, enums, string patterns, numeric constraints, nested objects, and anyOf/oneOf/allOf combiners. Uses the Ajv library.',
+    icon: '✓{}',
+    keywords: ['json schema', 'validate', 'ajv', 'draft-07', 'schema', 'validation', 'json validator', 'json schema validator'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['json-formatter', 'json-validator', 'jsonpath-tester'],
+    popular: true,
+    isNew: true,
+    order: 8,
+    seoTitle: 'JSON Schema Validator — Validate JSON Against a Schema',
+    seoDescription:
+      'Validate JSON data against JSON Schema (draft-07). Detailed error messages with paths. Free, browser-based, uses Ajv.',
+  },
+  {
+    id: 'json-escape',
+    name: 'JSON Escape / Unescape',
+    slug: 'json-escape',
+    category: 'json',
+    description: 'Escape or unescape JSON strings — quotes, backslashes, newlines, and Unicode',
+    longDescription:
+      'Escape a raw string so it is safe to embed inside a JSON string value, or unescape a JSON-encoded string back to its original form. Handles backslashes, double quotes, newlines (\\n), tabs (\\t), carriage returns (\\r), and Unicode escapes (\\uXXXX).',
+    icon: '"\\n"',
+    keywords: ['json escape', 'unescape', 'string escape', 'json string', 'backslash', 'newline', 'unicode escape', 'json encode'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['json-formatter', 'json-validator', 'url-encoder', 'html-encoder'],
+    isNew: true,
+    order: 9,
+    seoTitle: 'JSON Escape / Unescape — Escape JSON Strings Online',
+    seoDescription:
+      'Escape or unescape JSON strings. Handles quotes, backslashes, newlines, tabs, and Unicode escapes. Free, browser-based.',
+  },
+  {
+    id: 'json-sorter',
+    name: 'JSON Sorter',
+    slug: 'json-sorter',
+    category: 'json',
+    description: 'Sort JSON object keys alphabetically, recursively',
+    longDescription:
+      'Sort the keys of a JSON object alphabetically. Recursive mode sorts keys at every nesting level. Array order is never modified. Configurable ascending or descending key order.',
+    icon: 'A→Z',
+    keywords: ['json sort', 'sort keys', 'alphabetical', 'json organizer', 'json order', 'json key sort'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['json-formatter', 'json-diff', 'jsonpath-tester'],
+    isNew: true,
+    order: 10,
+    seoTitle: 'JSON Sorter — Sort JSON Object Keys Alphabetically',
+    seoDescription:
+      'Sort JSON object keys alphabetically. Recursive sorting for nested objects. Preserves array order. Free and browser-based.',
+  },
+
+  // Data Tools (CSV)
+  {
+    id: 'csv-formatter',
+    name: 'CSV Formatter',
+    slug: 'csv-formatter',
+    category: 'data',
+    description: 'Format and normalize CSV files — headers, quoting, delimiters',
+    longDescription:
+      'Parse and reformat CSV data consistently. Handles quoted fields, commas inside fields, multiline values, and Unicode. Configurable delimiter. Outputs clean, consistently quoted CSV.',
+    icon: ',_,',
+    keywords: ['csv', 'format', 'formatter', 'comma', 'delimiter', 'tsv', 'normalize', 'csv formatter', 'csv beautifier'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['csv-to-json', 'json-to-csv', 'csv-validator'],
+    popular: true,
+    isNew: true,
+    order: 1,
+    seoTitle: 'CSV Formatter — Format & Normalize CSV Online',
+    seoDescription:
+      'Format and normalize CSV files. Handles quoted fields, multiline values, and custom delimiters. Free online CSV formatter.',
+  },
+  {
+    id: 'csv-validator',
+    name: 'CSV Validator',
+    slug: 'csv-validator',
+    category: 'data',
+    description: 'Validate CSV for structural errors — mismatched columns, broken quotes',
+    longDescription:
+      'Validates CSV structure and reports errors with row and column context. Detects mismatched column counts, broken quotes, malformed multiline fields, and empty inputs. Reports errors like "Row 12: expected 5 columns but found 6."',
+    icon: 'CSV✓',
+    keywords: ['csv', 'validate', 'validator', 'lint', 'check', 'csv error', 'csv parser', 'csv checker'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['csv-formatter', 'csv-to-json', 'json-to-csv'],
+    isNew: true,
+    order: 2,
+    seoTitle: 'CSV Validator — Validate and Check CSV Files Online',
+    seoDescription:
+      'Validate CSV files for errors: mismatched columns, broken quotes, malformed rows. Row-level error reporting. Free, browser-based.',
   },
 ];
 

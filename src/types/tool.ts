@@ -9,6 +9,7 @@ export type ToolCategoryId =
   | 'developer-utilities'
   | 'date-time'
   | 'data-code'
+  | 'data'
   | 'utilities'
   | 'regex'
   | 'sql'
