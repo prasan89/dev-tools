@@ -1,0 +1,979 @@
+'use client';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { PdfToolLayout } from '@/components/pdf/PdfToolLayout';
+import { PdfDropzone } from '@/components/pdf/PdfDropzone';
+import { PdfDownload } from '@/components/pdf/PdfDownload';
+import { EditorOverlay, pdfRectToScreen } from '@/components/pdf/EditorOverlay';
+import { formatFileSize } from '@/lib/pdf/validation';
+import type { PdfFile } from '@/types/pdf';
+import type {
+  EditorObject, TextObject, ImageObject, RectObject,
+  EllipseObject, LineObject, ArrowObject, AnnotationObject,
+  EditOutcome, FontFamily, TextAlign, AnnotationType, ArrowheadStyle,
+} from '@/lib/pdf/editPdf';
+import {
+  createEditorState,
+  addObject,
+  updateObject,
+  removeObject,
+  bringForward,
+  sendBackward,
+  bringToFront,
+  sendToBack,
+  duplicateObject,
+  screenToPdfPoint,
+} from '@/lib/pdf/editPdf';
+import type { EditorState } from '@/lib/pdf/editPdf';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type SaveState = 'idle' | 'saving' | 'done' | 'error';
+type ToolMode = 'select' | 'text' | 'image' | 'rect' | 'ellipse' | 'line' | 'arrow' | 'highlight' | 'underline' | 'strikethrough';
+
+interface PageInfo {
+  number: number;
+  widthPt: number;
+  heightPt: number;
+  rotation: number;
+}
+
+// ─── Page rendering ────────────────────────────────────────────────────────────
+
+const PREVIEW_MAX_W = 760;
+const PREVIEW_MAX_H = 900;
+
+async function renderPageToCanvas(
+  pdfUrl: string,
+  pageNumber: number,
+  canvas: HTMLCanvasElement,
+): Promise<{ widthPt: number; heightPt: number; rotation: number; scale: number }> {
+  const pdfjs = await import('pdfjs-dist');
+  if (!pdfjs.GlobalWorkerOptions.workerPort) {
+    pdfjs.GlobalWorkerOptions.workerPort = new Worker('/pdf.worker.min.mjs', { type: 'module' });
+  }
+  const task = pdfjs.getDocument({ url: pdfUrl, disableAutoFetch: true, wasmUrl: '/wasm/' });
+  const doc = await task.promise;
+  const page = await doc.getPage(pageNumber);
+  const rotation = page.rotate;
+  const vpNatural = page.getViewport({ scale: 1, rotation: 0 });
+  const widthPt = vpNatural.width;
+  const heightPt = vpNatural.height;
+  const scale = Math.min(PREVIEW_MAX_W / widthPt, PREVIEW_MAX_H / heightPt, 2);
+  const viewport = page.getViewport({ scale, rotation });
+  canvas.width = Math.floor(viewport.width);
+  canvas.height = Math.floor(viewport.height);
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvas, canvasContext: ctx, viewport }).promise;
+  }
+  page.cleanup();
+  doc.cleanup();
+  return { widthPt, heightPt, rotation, scale };
+}
+
+// ─── Image decode ─────────────────────────────────────────────────────────────
+
+async function decodeImageFile(file: File): Promise<{
+  objectUrl: string;
+  mimeType: 'image/jpeg' | 'image/png';
+  naturalWidth: number;
+  naturalHeight: number;
+  embedBytes: Uint8Array;
+} | null> {
+  const t = file.type.toLowerCase();
+  const n = file.name.toLowerCase();
+  const isJpeg = t === 'image/jpeg' || n.endsWith('.jpg') || n.endsWith('.jpeg');
+  const isPng = t === 'image/png' || n.endsWith('.png');
+  const isWebp = t === 'image/webp' || n.endsWith('.webp');
+  if (!isJpeg && !isPng && !isWebp) return null;
+
+  const buf = await new Promise<ArrayBuffer>((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result as ArrayBuffer);
+    r.onerror = () => rej(new Error('read failed'));
+    r.readAsArrayBuffer(file);
+  });
+
+  const mimeOrig = isJpeg ? 'image/jpeg' : isWebp ? 'image/webp' : 'image/png';
+  const objUrl = URL.createObjectURL(new Blob([buf], { type: mimeOrig }));
+
+  const img = await new Promise<HTMLImageElement>((res, rej) => {
+    const el = document.createElement('img');
+    el.onload = () => res(el);
+    el.onerror = () => rej(new Error('decode failed'));
+    el.src = objUrl;
+  });
+  const naturalWidth = img.naturalWidth;
+  const naturalHeight = img.naturalHeight;
+
+  let embedBytes: Uint8Array;
+  let mimeType: 'image/jpeg' | 'image/png';
+
+  if (isWebp) {
+    // Convert to PNG for pdf-lib
+    const cv = document.createElement('canvas');
+    cv.width = naturalWidth; cv.height = naturalHeight;
+    const ctx = cv.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0);
+    const pngBlob = await new Promise<Blob | null>((r) => cv.toBlob(r, 'image/png'));
+    if (!pngBlob) return null;
+    embedBytes = new Uint8Array(await pngBlob.arrayBuffer());
+    mimeType = 'image/png';
+  } else if (isPng) {
+    embedBytes = new Uint8Array(buf);
+    mimeType = 'image/png';
+  } else {
+    embedBytes = new Uint8Array(buf);
+    mimeType = 'image/jpeg';
+  }
+
+  return { objectUrl: objUrl, mimeType, naturalWidth, naturalHeight, embedBytes };
+}
+
+// ─── Text edit modal ──────────────────────────────────────────────────────────
+
+function TextEditModal({
+  obj, onSave, onClose,
+}: { obj: TextObject; onSave: (p: Partial<TextObject>) => void; onClose: () => void }) {
+  const [text, setText] = useState(obj.text);
+  const [fontSize, setFontSize] = useState(obj.fontSize);
+  const [fontFamily, setFontFamily] = useState<FontFamily>(obj.fontFamily);
+  const [bold, setBold] = useState(obj.bold);
+  const [italic, setItalic] = useState(obj.italic);
+  const [underline, setUnderline] = useState(obj.underline);
+  const [color, setColor] = useState(obj.color);
+  const [align, setAlign] = useState<TextAlign>(obj.align);
+  const [opacity, setOpacity] = useState(obj.opacity);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => { taRef.current?.focus(); }, []);
+
+  return (
+    <div role="dialog" aria-modal="true" aria-label="Edit text"
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: 'white', borderRadius: 12, padding: '1.5rem', width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: '0.75rem', boxShadow: '0 25px 50px rgba(0,0,0,0.3)' }}>
+        <h2 className="text-base font-semibold text-gray-900">Edit Text</h2>
+        <textarea ref={taRef} value={text} onChange={(e) => setText(e.target.value)} rows={4}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
+          aria-label="Text content" />
+        <div className="flex flex-wrap gap-2 items-center">
+          <select value={fontFamily} onChange={(e) => setFontFamily(e.target.value as FontFamily)} className="rounded border border-gray-300 px-2 py-1 text-sm" aria-label="Font family">
+            <option value="Helvetica">Helvetica</option>
+            <option value="Times New Roman">Times New Roman</option>
+            <option value="Courier">Courier</option>
+          </select>
+          <div className="flex items-center gap-1">
+            <label className="text-xs text-gray-600">Size:</label>
+            <input type="number" value={fontSize} onChange={(e) => setFontSize(Math.max(6, Math.min(200, Number(e.target.value))))} min={6} max={200} className="w-16 rounded border border-gray-300 px-2 py-1 text-sm" aria-label="Font size" />
+          </div>
+          <button onClick={() => setBold(!bold)} className={`px-2 py-1 rounded border text-sm font-bold ${bold ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-700'}`} aria-pressed={bold}>B</button>
+          <button onClick={() => setItalic(!italic)} className={`px-2 py-1 rounded border text-sm italic ${italic ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-700'}`} aria-pressed={italic}>I</button>
+          <button onClick={() => setUnderline(!underline)} className={`px-2 py-1 rounded border text-sm underline ${underline ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-700'}`} aria-pressed={underline}>U</button>
+        </div>
+        <div className="flex flex-wrap gap-2 items-center">
+          {(['left', 'center', 'right'] as TextAlign[]).map((a) => (
+            <button key={a} onClick={() => setAlign(a)} className={`px-2 py-1 rounded border text-xs ${align === a ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-600'}`} aria-pressed={align === a}>{a.charAt(0).toUpperCase() + a.slice(1)}</button>
+          ))}
+          <div className="flex items-center gap-1">
+            <label className="text-xs text-gray-600">Color:</label>
+            <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-8 h-7 rounded border border-gray-300 p-0.5 cursor-pointer" aria-label="Text color" />
+          </div>
+          <div className="flex items-center gap-1">
+            <label className="text-xs text-gray-600">Opacity:</label>
+            <input type="range" value={Math.round(opacity * 100)} onChange={(e) => setOpacity(Number(e.target.value) / 100)} min={10} max={100} className="w-20" />
+            <span className="text-xs text-gray-500">{Math.round(opacity * 100)}%</span>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 pt-1">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
+          <button onClick={() => { onSave({ text, fontSize, fontFamily, bold, italic, underline, color, align, opacity }); onClose(); }}
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">Apply</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Contextual style panel for selected object ────────────────────────────────
+
+function StylePanel({
+  obj,
+  onUpdate,
+}: {
+  obj: EditorObject;
+  onUpdate: (id: string, patch: Partial<EditorObject>) => void;
+}) {
+  if (obj.type === 'rect') {
+    const r = obj as RectObject;
+    return (
+      <div className="flex flex-wrap gap-2 items-center px-1 py-1 text-xs">
+        <span className="text-gray-500 font-medium">Rectangle:</span>
+        <label className="flex items-center gap-1">Border <input type="color" value={r.borderColor} onChange={(e) => onUpdate(r.id, { borderColor: e.target.value } as Partial<RectObject>)} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
+        <label className="flex items-center gap-1">Fill <input type="color" value={r.fillColor} onChange={(e) => onUpdate(r.id, { fillColor: e.target.value } as Partial<RectObject>)} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
+        <label className="flex items-center gap-1">Fill opacity
+          <input type="range" value={Math.round(r.fillOpacity * 100)} onChange={(e) => onUpdate(r.id, { fillOpacity: Number(e.target.value) / 100 } as Partial<RectObject>)} min={0} max={100} className="w-16" />
+        </label>
+        <label className="flex items-center gap-1">Border W
+          <input type="number" value={r.borderWidth} onChange={(e) => onUpdate(r.id, { borderWidth: Math.max(0, Number(e.target.value)) } as Partial<RectObject>)} min={0} max={20} className="w-12 rounded border border-gray-300 px-1 py-0.5" />
+        </label>
+        <label className="flex items-center gap-1">Opacity
+          <input type="range" value={Math.round(r.opacity * 100)} onChange={(e) => onUpdate(r.id, { opacity: Number(e.target.value) / 100 } as Partial<RectObject>)} min={10} max={100} className="w-16" />
+        </label>
+      </div>
+    );
+  }
+
+  if (obj.type === 'ellipse') {
+    const ell = obj as EllipseObject;
+    return (
+      <div className="flex flex-wrap gap-2 items-center px-1 py-1 text-xs">
+        <span className="text-gray-500 font-medium">Ellipse:</span>
+        <label className="flex items-center gap-1">Border <input type="color" value={ell.borderColor} onChange={(e) => onUpdate(ell.id, { borderColor: e.target.value } as Partial<EllipseObject>)} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
+        <label className="flex items-center gap-1">Fill <input type="color" value={ell.fillColor} onChange={(e) => onUpdate(ell.id, { fillColor: e.target.value } as Partial<EllipseObject>)} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
+        <label className="flex items-center gap-1">Fill opacity
+          <input type="range" value={Math.round(ell.fillOpacity * 100)} onChange={(e) => onUpdate(ell.id, { fillOpacity: Number(e.target.value) / 100 } as Partial<EllipseObject>)} min={0} max={100} className="w-16" />
+        </label>
+        <label className="flex items-center gap-1">Border W
+          <input type="number" value={ell.borderWidth} onChange={(e) => onUpdate(ell.id, { borderWidth: Math.max(0, Number(e.target.value)) } as Partial<EllipseObject>)} min={0} max={20} className="w-12 rounded border border-gray-300 px-1 py-0.5" />
+        </label>
+      </div>
+    );
+  }
+
+  if (obj.type === 'line' || obj.type === 'arrow') {
+    const lo = obj as LineObject | ArrowObject;
+    return (
+      <div className="flex flex-wrap gap-2 items-center px-1 py-1 text-xs">
+        <span className="text-gray-500 font-medium">{obj.type === 'arrow' ? 'Arrow' : 'Line'}:</span>
+        <label className="flex items-center gap-1">Color <input type="color" value={lo.color} onChange={(e) => onUpdate(lo.id, { color: e.target.value })} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
+        <label className="flex items-center gap-1">Width
+          <input type="number" value={lo.width} onChange={(e) => onUpdate(lo.id, { width: Math.max(1, Number(e.target.value)) })} min={1} max={20} className="w-12 rounded border border-gray-300 px-1 py-0.5" />
+        </label>
+        <label className="flex items-center gap-1">Opacity
+          <input type="range" value={Math.round(lo.opacity * 100)} onChange={(e) => onUpdate(lo.id, { opacity: Number(e.target.value) / 100 })} min={10} max={100} className="w-16" />
+        </label>
+        {obj.type === 'arrow' && (
+          <label className="flex items-center gap-1">Head
+            <select value={(lo as ArrowObject).arrowhead} onChange={(e) => onUpdate(lo.id, { arrowhead: e.target.value as ArrowheadStyle } as Partial<ArrowObject>)} className="rounded border border-gray-300 px-1 py-0.5 text-xs">
+              <option value="none">None</option>
+              <option value="standard">Standard</option>
+              <option value="filled">Filled</option>
+            </select>
+          </label>
+        )}
+      </div>
+    );
+  }
+
+  if (obj.type === 'highlight' || obj.type === 'underline' || obj.type === 'strikethrough') {
+    const ann = obj as AnnotationObject;
+    const label = obj.type === 'highlight' ? 'Highlight' : obj.type === 'underline' ? 'Underline' : 'Strikethrough';
+    return (
+      <div className="flex flex-wrap gap-2 items-center px-1 py-1 text-xs">
+        <span className="text-gray-500 font-medium">{label}:</span>
+        <label className="flex items-center gap-1">Color <input type="color" value={ann.color} onChange={(e) => onUpdate(ann.id, { color: e.target.value })} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
+        <label className="flex items-center gap-1">Opacity
+          <input type="range" value={Math.round(ann.opacity * 100)} onChange={(e) => onUpdate(ann.id, { opacity: Number(e.target.value) / 100 })} min={10} max={100} className="w-16" />
+        </label>
+        {(ann.type === 'underline' || ann.type === 'strikethrough') && (
+          <label className="flex items-center gap-1">Line W
+            <input type="number" value={ann.lineWidth} onChange={(e) => onUpdate(ann.id, { lineWidth: Math.max(1, Number(e.target.value)) })} min={1} max={10} className="w-12 rounded border border-gray-300 px-1 py-0.5" />
+          </label>
+        )}
+      </div>
+    );
+  }
+
+  if (obj.type === 'image') {
+    const img = obj as ImageObject;
+    return (
+      <div className="flex flex-wrap gap-2 items-center px-1 py-1 text-xs">
+        <span className="text-gray-500 font-medium">Image:</span>
+        <label className="flex items-center gap-1">Opacity
+          <input type="range" value={Math.round(img.opacity * 100)} onChange={(e) => onUpdate(img.id, { opacity: Number(e.target.value) / 100 })} min={10} max={100} className="w-16" />
+        </label>
+        <label className="flex items-center gap-1">Rotation
+          <input type="number" value={Math.round(img.rotation)} onChange={(e) => onUpdate(img.id, { rotation: ((Number(e.target.value) % 360) + 360) % 360 })} min={0} max={359} step={90} className="w-16 rounded border border-gray-300 px-1 py-0.5" />°
+        </label>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+// ─── Drawing in-progress state ─────────────────────────────────────────────────
+
+interface DrawState {
+  startX: number; // screen px
+  startY: number;
+  currentX: number;
+  currentY: number;
+}
+
+// ─── Default shape colors ─────────────────────────────────────────────────────
+
+const DEFAULT_ANNOTATION_COLORS: Record<AnnotationType, string> = {
+  highlight: '#ffff00',
+  underline: '#0000ff',
+  strikethrough: '#ff0000',
+};
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+export default function EditPdfPage() {
+  const [pdfFile, setPdfFile] = useState<PdfFile | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pageInfos, setPageInfos] = useState<PageInfo[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [rendering, setRendering] = useState(false);
+
+  const [editorState, setEditorState] = useState<EditorState>(createEditorState());
+  const [history, setHistory] = useState<EditorState[]>([]);
+  const [future, setFuture] = useState<EditorState[]>([]);
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [toolMode, setToolMode] = useState<ToolMode>('select');
+  const [textEditId, setTextEditId] = useState<string | null>(null);
+  const [drawState, setDrawState] = useState<DrawState | null>(null);
+
+  const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [saveResult, setSaveResult] = useState<EditOutcome | null>(null);
+
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const pdfUrlRef = useRef<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const [pageScale, setPageScale] = useState(1);
+  const [pageDims, setPageDims] = useState({ widthPt: 595, heightPt: 842 });
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  const revokePdfUrl = useCallback(() => {
+    if (pdfUrlRef.current) {
+      URL.revokeObjectURL(pdfUrlRef.current);
+      pdfUrlRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => revokePdfUrl(), [revokePdfUrl]);
+
+  // ─── History ─────────────────────────────────────────────────────────────────
+
+  const pushHistory = useCallback((cur: EditorState) => {
+    setHistory((prev) => [...prev.slice(-29), cur]);
+    setFuture([]);
+  }, []);
+
+  const undo = useCallback(() => {
+    setHistory((prev) => {
+      if (prev.length === 0) return prev;
+      const snap = prev[prev.length - 1];
+      setFuture((f) => [editorState, ...f.slice(0, 29)]);
+      setEditorState(snap);
+      return prev.slice(0, -1);
+    });
+  }, [editorState]);
+
+  const redo = useCallback(() => {
+    setFuture((f) => {
+      if (f.length === 0) return f;
+      const snap = f[0];
+      setHistory((h) => [...h.slice(-29), editorState]);
+      setEditorState(snap);
+      return f.slice(1);
+    });
+  }, [editorState]);
+
+  const handleUpdate = useCallback((id: string, patch: Partial<EditorObject>) => {
+    setEditorState((s) => updateObject(s, id, patch));
+  }, []);
+
+  const handleDelete = useCallback((id: string) => {
+    setEditorState((s) => { pushHistory(s); return removeObject(s, id); });
+    setSelectedId(null);
+  }, [pushHistory]);
+
+  // ─── File selected ────────────────────────────────────────────────────────────
+
+  const handleFileSelected = useCallback((files: PdfFile[]) => {
+    const file = files[0];
+    if (!file) return;
+    revokePdfUrl();
+    const url = URL.createObjectURL(file.file);
+    pdfUrlRef.current = url;
+    setPdfFile(file);
+    setPdfUrl(url);
+    setEditorState(createEditorState());
+    setHistory([]); setFuture([]);
+    setSelectedId(null); setSaveState('idle'); setSaveResult(null); setLoadError(null);
+    setCurrentPage(1); setPageInfos([]);
+  }, [revokePdfUrl]);
+
+  // ─── Render page ──────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!pdfUrl || !canvasRef.current) return;
+    setRendering(true); setLoadError(null);
+    const canvas = canvasRef.current;
+    renderPageToCanvas(pdfUrl, currentPage, canvas)
+      .then(({ widthPt, heightPt, scale }) => {
+        setPageScale(scale);
+        setPageDims({ widthPt, heightPt });
+        setCanvasSize({ width: canvas.width, height: canvas.height });
+      })
+      .catch((err) => setLoadError(`Failed to render page: ${String(err).slice(0, 80)}`))
+      .finally(() => setRendering(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pdfUrl, currentPage]);
+
+  // Load all page infos on first render
+  useEffect(() => {
+    if (!pdfUrl || pageInfos.length > 0) return;
+    import('pdfjs-dist').then(async (pdfjs) => {
+      const doc = await pdfjs.getDocument({ url: pdfUrl!, disableAutoFetch: true, wasmUrl: '/wasm/' }).promise;
+      const count = doc.numPages;
+      const infos: PageInfo[] = [];
+      for (let i = 1; i <= count; i++) {
+        const pg = await doc.getPage(i);
+        const vp = pg.getViewport({ scale: 1, rotation: 0 });
+        infos.push({ number: i, widthPt: vp.width, heightPt: vp.height, rotation: pg.rotate });
+        pg.cleanup();
+      }
+      doc.cleanup();
+      setPageInfos(infos);
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pdfUrl]);
+
+  // ─── Canvas pointer — shape/annotation drawing ────────────────────────────────
+
+  const isDrawingTool = (m: ToolMode) =>
+    m === 'rect' || m === 'ellipse' || m === 'line' || m === 'arrow' ||
+    m === 'highlight' || m === 'underline' || m === 'strikethrough';
+
+  const getCanvasRelative = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  };
+
+  const handleCanvasPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      if (toolMode === 'text') {
+        // Text: place on click
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const sx = e.clientX - rect.left;
+        const sy = e.clientY - rect.top;
+        const pdfPt = screenToPdfPoint(sx, sy, pageScale, pageDims.heightPt);
+        const dw = 200 / pageScale;
+        const dh = 50 / pageScale;
+        const newObj: Omit<TextObject, 'zIndex'> = {
+          id: crypto.randomUUID(),
+          type: 'text',
+          pageIndex: currentPage - 1,
+          x: pdfPt.x, y: pdfPt.y - dh, width: dw, height: dh,
+          text: 'Text',
+          fontFamily: 'Helvetica',
+          fontSize: 14,
+          bold: false, italic: false, underline: false,
+          color: '#000000', opacity: 1, align: 'left',
+        };
+        setEditorState((prev) => { pushHistory(prev); return addObject(prev, newObj); });
+        setTimeout(() => {
+          setEditorState((s) => {
+            const id = s.objects[s.objects.length - 1]?.id;
+            if (id) { setSelectedId(id); setTextEditId(id); }
+            return s;
+          });
+        }, 0);
+        setToolMode('select');
+        return;
+      }
+
+      if (isDrawingTool(toolMode)) {
+        e.preventDefault();
+        const { x, y } = getCanvasRelative(e);
+        setDrawState({ startX: x, startY: y, currentX: x, currentY: y });
+        (e.target as Element).setPointerCapture(e.pointerId);
+      }
+    },
+    [toolMode, pageScale, pageDims, currentPage, pushHistory],
+  );
+
+  const handleCanvasPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      if (!drawState || !isDrawingTool(toolMode)) return;
+      const { x, y } = getCanvasRelative(e);
+      setDrawState((ds) => ds ? { ...ds, currentX: x, currentY: y } : null);
+    },
+    [drawState, toolMode],
+  );
+
+  const handleCanvasPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      if (!drawState || !isDrawingTool(toolMode)) return;
+      (e.target as Element).releasePointerCapture(e.pointerId);
+
+      const { startX, startY, currentX, currentY } = drawState;
+      setDrawState(null);
+
+      const minDist = 5;
+      const dist = Math.hypot(currentX - startX, currentY - startY);
+      if (dist < minDist) return; // ignore tiny draws
+
+      const p1 = screenToPdfPoint(startX, startY, pageScale, pageDims.heightPt);
+      const p2 = screenToPdfPoint(currentX, currentY, pageScale, pageDims.heightPt);
+
+      let newObj: Omit<EditorObject, 'zIndex'>;
+
+      if (toolMode === 'line') {
+        newObj = { id: crypto.randomUUID(), type: 'line', pageIndex: currentPage - 1, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, color: '#000000', width: 2, opacity: 1 } as Omit<LineObject, 'zIndex'>;
+      } else if (toolMode === 'arrow') {
+        newObj = { id: crypto.randomUUID(), type: 'arrow', pageIndex: currentPage - 1, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, color: '#000000', width: 2, opacity: 1, arrowhead: 'filled' } as Omit<ArrowObject, 'zIndex'>;
+      } else if (toolMode === 'ellipse') {
+        const cx = (p1.x + p2.x) / 2;
+        const cy = (p1.y + p2.y) / 2;
+        const rx = Math.abs(p2.x - p1.x) / 2;
+        const ry = Math.abs(p2.y - p1.y) / 2;
+        newObj = { id: crypto.randomUUID(), type: 'ellipse', pageIndex: currentPage - 1, cx, cy, rx: Math.max(5, rx), ry: Math.max(5, ry), borderColor: '#000000', fillColor: '#ffffff', fillOpacity: 0, borderWidth: 2, borderOpacity: 1, opacity: 1 } as Omit<EllipseObject, 'zIndex'>;
+      } else {
+        // rect or annotations
+        const x = Math.min(p1.x, p2.x);
+        const y = Math.min(p1.y, p2.y);
+        const w = Math.abs(p2.x - p1.x);
+        const h = Math.abs(p2.y - p1.y);
+
+        if (toolMode === 'rect') {
+          newObj = { id: crypto.randomUUID(), type: 'rect', pageIndex: currentPage - 1, x, y, width: Math.max(5, w), height: Math.max(5, h), rotation: 0, borderColor: '#000000', fillColor: '#ffffff', fillOpacity: 0, borderWidth: 2, borderOpacity: 1, opacity: 1 } as Omit<RectObject, 'zIndex'>;
+        } else {
+          const annType = toolMode as AnnotationType;
+          newObj = {
+            id: crypto.randomUUID(),
+            type: annType,
+            pageIndex: currentPage - 1,
+            x, y, width: Math.max(5, w), height: Math.max(5, h),
+            color: DEFAULT_ANNOTATION_COLORS[annType],
+            opacity: annType === 'highlight' ? 0.4 : 1,
+            lineWidth: 2,
+          } as Omit<AnnotationObject, 'zIndex'>;
+        }
+      }
+
+      setEditorState((prev) => {
+        pushHistory(prev);
+        const next = addObject(prev, newObj);
+        setSelectedId(next.objects[next.objects.length - 1].id);
+        return next;
+      });
+      setToolMode('select');
+    },
+    [drawState, toolMode, pageScale, pageDims, currentPage, pushHistory],
+  );
+
+  // ─── Image add ────────────────────────────────────────────────────────────────
+
+  const handleImageFiles = useCallback(async (files: FileList | File[]) => {
+    const arr = Array.from(files).slice(0, 5);
+    for (const file of arr) {
+      const decoded = await decodeImageFile(file).catch(() => null);
+      if (!decoded) continue;
+      const { objectUrl, mimeType, naturalWidth, naturalHeight, embedBytes } = decoded;
+      const dw = pageDims.widthPt * 0.4;
+      const aspect = naturalWidth / naturalHeight;
+      const dh = dw / aspect;
+      const newObj: Omit<ImageObject, 'zIndex'> = {
+        id: crypto.randomUUID(),
+        type: 'image',
+        pageIndex: currentPage - 1,
+        x: pageDims.widthPt / 2 - dw / 2,
+        y: pageDims.heightPt / 2 - dh / 2,
+        width: dw, height: dh,
+        naturalWidth, naturalHeight,
+        rotation: 0, objectUrl, mimeType, embedBytes, opacity: 1,
+      };
+      setEditorState((prev) => {
+        pushHistory(prev);
+        const next = addObject(prev, newObj);
+        setSelectedId(next.objects[next.objects.length - 1].id);
+        return next;
+      });
+    }
+    setToolMode('select');
+  }, [pageDims, currentPage, pushHistory]);
+
+  // ─── Keyboard shortcuts ────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (ctrl && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+      if (ctrl && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo(); }
+      if (ctrl && e.key === 'd' && selectedId) {
+        e.preventDefault();
+        setEditorState((s) => { pushHistory(s); return duplicateObject(s, selectedId); });
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [undo, redo, selectedId, pushHistory]);
+
+  // ─── Save ─────────────────────────────────────────────────────────────────────
+
+  const handleSave = useCallback(async () => {
+    if (!pdfFile) return;
+    setSaveState('saving'); setSaveResult(null);
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+    const { buildEditedPdf } = await import('@/lib/pdf/editPdf');
+    const result = await buildEditedPdf(pdfFile, editorState, ac.signal);
+    setSaveResult(result);
+    setSaveState(result.success ? 'done' : 'error');
+  }, [pdfFile, editorState]);
+
+  const handleReset = useCallback(() => {
+    revokePdfUrl();
+    setPdfFile(null); setPdfUrl(null); setPageInfos([]);
+    setCurrentPage(1); setEditorState(createEditorState());
+    setHistory([]); setFuture([]);
+    setSelectedId(null); setSaveState('idle'); setSaveResult(null); setLoadError(null);
+  }, [revokePdfUrl]);
+
+  const selectedObj = editorState.objects.find((o) => o.id === selectedId) ?? null;
+  const pageCount = pageInfos.length || (pdfFile?.pageCount ?? 0);
+
+  // ─── Draw ghost preview ────────────────────────────────────────────────────────
+
+  const drawGhost = drawState && isDrawingTool(toolMode) ? (() => {
+    const { startX, startY, currentX, currentY } = drawState;
+    const left = Math.min(startX, currentX);
+    const top = Math.min(startY, currentY);
+    const w = Math.abs(currentX - startX);
+    const h = Math.abs(currentY - startY);
+    if (toolMode === 'line' || toolMode === 'arrow') {
+      // SVG line ghost
+      const svgW = Math.max(w + 20, 20);
+      const svgH = Math.max(h + 20, 20);
+      const sx = startX - Math.min(startX, currentX) + 10;
+      const sy = startY - Math.min(startY, currentY) + 10;
+      const ex = currentX - Math.min(startX, currentX) + 10;
+      const ey = currentY - Math.min(startY, currentY) + 10;
+      return (
+        <svg
+          style={{ position: 'absolute', left: Math.min(startX, currentX) - 10, top: Math.min(startY, currentY) - 10, width: svgW, height: svgH, pointerEvents: 'none' }}
+          aria-hidden="true"
+        >
+          <line x1={sx} y1={sy} x2={ex} y2={ey} stroke="#2563eb" strokeWidth={2} strokeDasharray="4,3" />
+        </svg>
+      );
+    }
+    return (
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute', left, top, width: w, height: h,
+          border: '2px dashed #2563eb',
+          background: toolMode === 'highlight' ? 'rgba(255,255,0,0.3)' : 'rgba(37,99,235,0.05)',
+          borderRadius: toolMode === 'ellipse' ? '50%' : 0,
+          pointerEvents: 'none',
+        }}
+      />
+    );
+  })() : null;
+
+  // ─── Render ───────────────────────────────────────────────────────────────────
+
+  if (!pdfFile) {
+    return (
+      <PdfToolLayout title="PDF Editor" description="Add text, images, shapes, and annotations to any PDF. Everything stays in your browser.">
+        <PdfDropzone onFilesSelected={handleFileSelected} />
+        <p className="mt-4 text-xs text-center text-gray-400 dark:text-gray-600">
+          Your PDF and any images are processed locally. They are never uploaded to our servers.
+        </p>
+      </PdfToolLayout>
+    );
+  }
+
+  if (saveState === 'done' && saveResult?.success) {
+    return (
+      <PdfToolLayout title="PDF Editor" description="">
+        <div className="rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/20 p-6 text-center space-y-4">
+          <div className="text-green-600 dark:text-green-400 font-medium" role="status">✓ PDF edited successfully</div>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {saveResult.pageCount} page{saveResult.pageCount !== 1 ? 's' : ''} · {formatFileSize(saveResult.sizeBytes)}
+          </p>
+          <div className="flex justify-center gap-3 flex-wrap">
+            <PdfDownload blob={saveResult.blob} filename={saveResult.filename} />
+            <button onClick={handleReset} className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">Edit another PDF</button>
+          </div>
+        </div>
+      </PdfToolLayout>
+    );
+  }
+
+  const toolBtn = (mode: ToolMode, label: string, title?: string) => (
+    <button
+      onClick={() => setToolMode(toolMode === mode ? 'select' : mode)}
+      className={`px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap ${toolMode === mode ? 'bg-blue-600 text-white' : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+      aria-pressed={toolMode === mode}
+      title={title}
+    >{label}</button>
+  );
+
+  return (
+    <PdfToolLayout title="PDF Editor" description="Add text, images, shapes, and annotations. Nothing leaves your browser.">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+        {toolBtn('select', 'Select')}
+        <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
+        {toolBtn('text', 'Text', 'Click to place text box')}
+        <button onClick={() => imageInputRef.current?.click()} className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">Image</button>
+        <input ref={imageInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" multiple className="sr-only" aria-label="Select image files" onChange={(e) => e.target.files && handleImageFiles(e.target.files)} />
+        <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
+        {toolBtn('rect', '□ Rect', 'Draw rectangle')}
+        {toolBtn('ellipse', '○ Ellipse', 'Draw ellipse')}
+        {toolBtn('line', '╱ Line', 'Draw line')}
+        {toolBtn('arrow', '→ Arrow', 'Draw arrow')}
+        <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
+        {toolBtn('highlight', '🟡 Highlight', 'Draw highlight')}
+        {toolBtn('underline', '‾ Underline', 'Draw underline')}
+        {toolBtn('strikethrough', '̶S̶ Strike', 'Draw strikethrough')}
+        <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
+        <button onClick={undo} disabled={history.length === 0} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-40" aria-label="Undo">↩</button>
+        <button onClick={redo} disabled={future.length === 0} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-40" aria-label="Redo">↪</button>
+        {selectedObj && (
+          <>
+            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
+            {selectedObj.type === 'text' && <button onClick={() => setTextEditId(selectedId)} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Edit Text</button>}
+            <button onClick={() => setEditorState((s) => { pushHistory(s); return duplicateObject(s, selectedId!); })} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Dup</button>
+            <button onClick={() => setEditorState((s) => bringForward(s, selectedId!))} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300" title="Bring Forward">↑</button>
+            <button onClick={() => setEditorState((s) => sendBackward(s, selectedId!))} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300" title="Send Backward">↓</button>
+            <button onClick={() => setEditorState((s) => bringToFront(s, selectedId!))} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300" title="Bring to Front">⇑</button>
+            <button onClick={() => setEditorState((s) => sendToBack(s, selectedId!))} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300" title="Send to Back">⇓</button>
+            <button onClick={() => handleDelete(selectedId!)} className="px-2 py-1.5 rounded-lg text-xs border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400">Del</button>
+            {selectedObj.type === 'image' && (
+              <label className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 cursor-pointer">
+                Replace
+                <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" className="sr-only" onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file || !selectedId) return;
+                  const decoded = await decodeImageFile(file).catch(() => null);
+                  if (!decoded) return;
+                  const { objectUrl, mimeType, naturalWidth, naturalHeight, embedBytes } = decoded;
+                  const cur = editorState.objects.find((o) => o.id === selectedId) as ImageObject | undefined;
+                  setEditorState((s) => { pushHistory(s); return updateObject(s, selectedId, { objectUrl, mimeType, naturalWidth, naturalHeight, embedBytes, height: (cur?.width ?? 100) / (naturalWidth / naturalHeight) } as Partial<ImageObject>); });
+                }} />
+              </label>
+            )}
+          </>
+        )}
+        <div className="ml-auto flex gap-1.5">
+          <button onClick={handleReset} className="px-3 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400">Close</button>
+          <button
+            onClick={handleSave}
+            disabled={saveState === 'saving' || editorState.objects.length === 0}
+            className="px-4 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {saveState === 'saving' ? 'Generating…' : 'Download PDF'}
+          </button>
+        </div>
+      </div>
+
+      {/* Style panel for selected object */}
+      {selectedObj && (
+        <div className="rounded-lg border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 px-2 py-1">
+          <StylePanel obj={selectedObj} onUpdate={handleUpdate} />
+        </div>
+      )}
+
+      {/* Mode hint */}
+      {toolMode !== 'select' && (
+        <p className="text-xs text-blue-600 dark:text-blue-400 px-1" role="status">
+          {toolMode === 'text' ? 'Click to place a text box.' : `Draw on the page to add ${toolMode}.`}
+        </p>
+      )}
+
+      {/* Error */}
+      {(loadError || (saveState === 'error' && saveResult && !saveResult.success)) && (
+        <div role="alert" className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+          {loadError ?? (saveResult && !saveResult.success ? saveResult.error : '')}
+        </div>
+      )}
+
+      {/* Page navigation */}
+      {pageCount > 1 && (
+        <div className="flex items-center gap-2 justify-center" role="navigation" aria-label="Page navigation">
+          <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage <= 1} className="px-3 py-1 rounded-lg border border-gray-300 dark:border-gray-600 text-sm disabled:opacity-40" aria-label="Previous page">←</button>
+          <span className="text-sm text-gray-600 dark:text-gray-400" aria-live="polite">Page {currentPage} of {pageCount}</span>
+          <button onClick={() => setCurrentPage((p) => Math.min(pageCount, p + 1))} disabled={currentPage >= pageCount} className="px-3 py-1 rounded-lg border border-gray-300 dark:border-gray-600 text-sm disabled:opacity-40" aria-label="Next page">→</button>
+        </div>
+      )}
+
+      {/* Canvas area */}
+      <div className="relative inline-block border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm bg-white">
+        {rendering && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-gray-900/80 z-10">
+            <span className="text-sm text-gray-500" role="status">Loading page…</span>
+          </div>
+        )}
+        <canvas
+          ref={canvasRef}
+          style={{ display: 'block', cursor: toolMode === 'text' ? 'text' : isDrawingTool(toolMode) ? 'crosshair' : 'default', touchAction: isDrawingTool(toolMode) ? 'none' : 'auto' }}
+          onPointerDown={handleCanvasPointerDown}
+          onPointerMove={handleCanvasPointerMove}
+          onPointerUp={handleCanvasPointerUp}
+          aria-label={`PDF page ${currentPage}`}
+          role="img"
+        />
+
+        {/* Shape/annotation previews */}
+        {editorState.objects
+          .filter((o) => o.pageIndex === currentPage - 1)
+          .sort((a, b) => a.zIndex - b.zIndex)
+          .map((obj) => {
+            if (obj.type === 'image') {
+              const img = obj as ImageObject;
+              const r = pdfRectToScreen(img.x, img.y, img.width, img.height, pageScale, pageDims.heightPt);
+              return (
+                <img key={obj.id} src={img.objectUrl} alt="" aria-hidden="true"
+                  style={{ position: 'absolute', left: r.left, top: r.top, width: r.width, height: r.height, opacity: img.opacity, transform: `rotate(${img.rotation}deg)`, transformOrigin: 'center', pointerEvents: 'none', objectFit: 'fill' }} />
+              );
+            }
+            if (obj.type === 'text') {
+              const txt = obj as TextObject;
+              const r = pdfRectToScreen(txt.x, txt.y, txt.width, txt.height, pageScale, pageDims.heightPt);
+              return (
+                <div key={obj.id} aria-hidden="true"
+                  style={{ position: 'absolute', left: r.left, top: r.top, width: r.width, height: r.height, opacity: txt.opacity, fontSize: txt.fontSize * pageScale, fontFamily: txt.fontFamily, fontWeight: txt.bold ? 'bold' : 'normal', fontStyle: txt.italic ? 'italic' : 'normal', textDecoration: txt.underline ? 'underline' : 'none', color: txt.color, textAlign: txt.align, pointerEvents: 'none', overflow: 'hidden', whiteSpace: 'pre-wrap', lineHeight: 1.2 }}>
+                  {txt.text}
+                </div>
+              );
+            }
+            if (obj.type === 'rect') {
+              const ro = obj as RectObject;
+              const r = pdfRectToScreen(ro.x, ro.y, ro.width, ro.height, pageScale, pageDims.heightPt);
+              return (
+                <div key={obj.id} aria-hidden="true"
+                  style={{ position: 'absolute', left: r.left, top: r.top, width: r.width, height: r.height, opacity: ro.opacity, background: ro.fillOpacity > 0 ? `${ro.fillColor}${Math.round(ro.fillOpacity * 255).toString(16).padStart(2, '0')}` : 'transparent', border: ro.borderWidth > 0 ? `${ro.borderWidth}px solid ${ro.borderColor}` : 'none', transform: `rotate(${ro.rotation}deg)`, transformOrigin: 'center', pointerEvents: 'none', boxSizing: 'border-box' }} />
+              );
+            }
+            if (obj.type === 'ellipse') {
+              const ell = obj as EllipseObject;
+              const r = pdfRectToScreen(ell.cx - ell.rx, ell.cy - ell.ry, ell.rx * 2, ell.ry * 2, pageScale, pageDims.heightPt);
+              return (
+                <div key={obj.id} aria-hidden="true"
+                  style={{ position: 'absolute', left: r.left, top: r.top, width: r.width, height: r.height, opacity: ell.opacity, background: ell.fillOpacity > 0 ? `${ell.fillColor}${Math.round(ell.fillOpacity * 255).toString(16).padStart(2, '0')}` : 'transparent', border: ell.borderWidth > 0 ? `${ell.borderWidth}px solid ${ell.borderColor}` : 'none', borderRadius: '50%', pointerEvents: 'none', boxSizing: 'border-box' }} />
+              );
+            }
+            if (obj.type === 'line' || obj.type === 'arrow') {
+              const lo = obj as LineObject | ArrowObject;
+              const p1s = { x: lo.x1 * pageScale, y: (pageDims.heightPt - lo.y1) * pageScale };
+              const p2s = { x: lo.x2 * pageScale, y: (pageDims.heightPt - lo.y2) * pageScale };
+              const minX = Math.min(p1s.x, p2s.x) - 10;
+              const minY = Math.min(p1s.y, p2s.y) - 10;
+              const svgW = Math.abs(p2s.x - p1s.x) + 20;
+              const svgH = Math.abs(p2s.y - p1s.y) + 20;
+              const dx = p1s.x - minX;
+              const dy = p1s.y - minY;
+              const ex = p2s.x - minX;
+              const ey = p2s.y - minY;
+              const dxArrow = p2s.x - p1s.x;
+              const dyArrow = p2s.y - p1s.y;
+              const len = Math.sqrt(dxArrow * dxArrow + dyArrow * dyArrow);
+              return (
+                <svg key={obj.id} aria-hidden="true"
+                  style={{ position: 'absolute', left: minX, top: minY, width: Math.max(svgW, 4), height: Math.max(svgH, 4), pointerEvents: 'none', overflow: 'visible' }}>
+                  <line x1={dx} y1={dy} x2={ex} y2={ey} stroke={lo.color} strokeWidth={lo.width} opacity={lo.opacity} />
+                  {obj.type === 'arrow' && (lo as ArrowObject).arrowhead !== 'none' && len > 0 && (() => {
+                    const ux = dxArrow / len;
+                    const uy = dyArrow / len;
+                    const sz = Math.max(lo.width * 4, 10);
+                    const px = -uy; const py = ux;
+                    const b1x = ex - ux * sz + px * sz * 0.4;
+                    const b1y = ey - uy * sz + py * sz * 0.4;
+                    const b2x = ex - ux * sz - px * sz * 0.4;
+                    const b2y = ey - uy * sz - py * sz * 0.4;
+                    return (
+                      <>
+                        <line x1={ex} y1={ey} x2={b1x} y2={b1y} stroke={lo.color} strokeWidth={lo.width} opacity={lo.opacity} />
+                        <line x1={ex} y1={ey} x2={b2x} y2={b2y} stroke={lo.color} strokeWidth={lo.width} opacity={lo.opacity} />
+                      </>
+                    );
+                  })()}
+                </svg>
+              );
+            }
+            // annotations
+            if (obj.type === 'highlight' || obj.type === 'underline' || obj.type === 'strikethrough') {
+              const ann = obj as AnnotationObject;
+              const r = pdfRectToScreen(ann.x, ann.y, ann.width, ann.height, pageScale, pageDims.heightPt);
+              if (ann.type === 'highlight') {
+                return <div key={obj.id} aria-hidden="true" style={{ position: 'absolute', left: r.left, top: r.top, width: r.width, height: r.height, background: ann.color, opacity: ann.opacity, pointerEvents: 'none' }} />;
+              }
+              if (ann.type === 'underline') {
+                return <div key={obj.id} aria-hidden="true" style={{ position: 'absolute', left: r.left, top: r.top + r.height - ann.lineWidth, width: r.width, height: ann.lineWidth, background: ann.color, opacity: ann.opacity, pointerEvents: 'none' }} />;
+              }
+              // strikethrough
+              return <div key={obj.id} aria-hidden="true" style={{ position: 'absolute', left: r.left, top: r.top + r.height / 2 - ann.lineWidth / 2, width: r.width, height: ann.lineWidth, background: ann.color, opacity: ann.opacity, pointerEvents: 'none' }} />;
+            }
+            return null;
+          })}
+
+        {/* Drawing ghost */}
+        {drawGhost}
+
+        {/* Editor handles overlay */}
+        {canvasSize.width > 0 && (
+          <EditorOverlay
+            objects={editorState.objects}
+            pageIndex={currentPage - 1}
+            pageWidthPt={pageDims.widthPt}
+            pageHeightPt={pageDims.heightPt}
+            scale={pageScale}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onUpdate={handleUpdate}
+            onDelete={handleDelete}
+            onTextEdit={(id) => setTextEditId(id)}
+            canvasWidth={canvasSize.width}
+            canvasHeight={canvasSize.height}
+          />
+        )}
+      </div>
+
+      {/* Object count summary */}
+      {editorState.objects.length > 0 && (
+        <p className="text-xs text-gray-500 dark:text-gray-400 px-1">
+          {editorState.objects.filter((o) => o.type === 'text').length} text, {' '}
+          {editorState.objects.filter((o) => o.type === 'image').length} image, {' '}
+          {editorState.objects.filter((o) => o.type === 'rect' || o.type === 'ellipse' || o.type === 'line' || o.type === 'arrow').length} shape, {' '}
+          {editorState.objects.filter((o) => o.type === 'highlight' || o.type === 'underline' || o.type === 'strikethrough').length} annotation
+          {' '}across {new Set(editorState.objects.map((o) => o.pageIndex)).size} page{new Set(editorState.objects.map((o) => o.pageIndex)).size !== 1 ? 's' : ''}
+        </p>
+      )}
+
+      {/* Text edit modal */}
+      {textEditId && (() => {
+        const obj = editorState.objects.find((o) => o.id === textEditId);
+        if (!obj || obj.type !== 'text') { setTextEditId(null); return null; }
+        return (
+          <TextEditModal
+            obj={obj as TextObject}
+            onSave={(patch) => {
+              setEditorState((s) => { pushHistory(s); return updateObject(s, textEditId, patch as Partial<EditorObject>); });
+            }}
+            onClose={() => setTextEditId(null)}
+          />
+        );
+      })()}
+    </PdfToolLayout>
+  );
+}

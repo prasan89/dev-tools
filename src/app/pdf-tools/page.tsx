@@ -75,6 +75,12 @@ const UPCOMING_TOOLS = [
     available: true,
   },
   {
+    title: 'Edit PDF',
+    description: 'Add text, images, shapes, highlights, and annotations to any PDF page.',
+    href: '/pdf-tools/edit-pdf',
+    available: true,
+  },
+  {
     title: 'PDF Watermark',
     description: 'Add text or image watermarks to PDF pages.',
     href: '/pdf-tools/watermark',
