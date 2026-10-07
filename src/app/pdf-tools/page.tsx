@@ -95,8 +95,8 @@ const UPCOMING_TOOLS = [
   {
     title: 'PDF Watermark',
     description: 'Add text or image watermarks to PDF pages.',
-    href: '/pdf-tools/watermark',
-    available: false,
+    href: '/pdf-tools/watermark-pdf',
+    available: true,
   },
 ];
 
