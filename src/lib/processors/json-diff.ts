@@ -1,4 +1,5 @@
 import { ToolProcessor, ToolInput, ToolResult } from '@/types/tool';
+import { diffCheckerProcessor, DiffData } from './diff-checker';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -126,11 +127,12 @@ function formatDiff(results: DiffEntry[]): string {
 // ---------------------------------------------------------------------------
 
 export const jsonDiffProcessor: ToolProcessor = {
-  inputLabel: 'JSON A',
+  inputLabel: 'Original JSON',
   inputPlaceholder: '{"name":"John","age":30}',
   hasSecondaryInput: true,
-  secondaryInputLabel: 'JSON B',
-  autoProcess: false,
+  secondaryInputLabel: 'Changed JSON',
+  autoProcess: true,
+  layoutVariant: 'diff',
   exampleInput: '{"name":"John","age":30,"city":"Mumbai","tags":["developer","java"]}',
   exampleSecondary: '{"name":"John","age":31,"city":"Chennai","tags":["developer","spring"],"active":true}',
 
@@ -139,8 +141,8 @@ export const jsonDiffProcessor: ToolProcessor = {
     const rightRaw = (input.secondary ?? '').trim();
 
     if (!leftRaw && !rightRaw) return { error: 'Paste JSON into both panels to compare.' };
-    if (!leftRaw) return { error: 'JSON A is empty.' };
-    if (!rightRaw) return { error: 'JSON B is empty.' };
+    if (!leftRaw) return { error: 'Original JSON is empty.' };
+    if (!rightRaw) return { error: 'Changed JSON is empty.' };
 
     let left: JsonValue;
     let right: JsonValue;
@@ -149,28 +151,43 @@ export const jsonDiffProcessor: ToolProcessor = {
       left = JSON.parse(leftRaw) as JsonValue;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      return { error: `JSON A is invalid: ${msg}` };
+      return { error: `Original JSON is invalid: ${msg}` };
     }
 
     try {
       right = JSON.parse(rightRaw) as JsonValue;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      return { error: `JSON B is invalid: ${msg}` };
+      return { error: `Changed JSON is invalid: ${msg}` };
     }
 
-    const results: DiffEntry[] = [];
-    diffValues(left, right, '', results);
+    // Produce line-based diff using formatted JSON strings
+    const leftFormatted = JSON.stringify(left, null, 2);
+    const rightFormatted = JSON.stringify(right, null, 2);
 
-    const added = results.filter((r) => r.status === 'added').length;
-    const removed = results.filter((r) => r.status === 'removed').length;
-    const changed = results.filter((r) => r.status === 'changed').length;
+    // Delegate to diff-checker for the line diff
+    const lineDiffResult = diffCheckerProcessor.process({
+      value: leftFormatted,
+      secondary: rightFormatted,
+      options: {},
+    });
+
+    if (lineDiffResult.error) return lineDiffResult;
+
+    const diffData = JSON.parse(lineDiffResult.output!.value) as DiffData;
+
+    // Also compute structural diff for metadata
+    const structuralResults: DiffEntry[] = [];
+    diffValues(left, right, '', structuralResults);
+    const added = structuralResults.filter((r) => r.status === 'added').length;
+    const removed = structuralResults.filter((r) => r.status === 'removed').length;
+    const changed = structuralResults.filter((r) => r.status === 'changed').length;
 
     return {
       output: {
-        value: formatDiff(results),
-        type: 'text',
-        label: 'Diff Result',
+        value: JSON.stringify(diffData),
+        type: 'json',
+        label: 'JSON Diff',
         copyable: true,
         downloadFilename: 'json-diff.txt',
         downloadMime: 'text/plain',
@@ -179,7 +196,7 @@ export const jsonDiffProcessor: ToolProcessor = {
         added,
         removed,
         changed,
-        total: results.length,
+        total: structuralResults.length,
       },
     };
   },

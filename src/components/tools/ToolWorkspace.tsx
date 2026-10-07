@@ -6,6 +6,7 @@ import { getProcessor } from '@/lib/processors/index';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { DownloadButton } from '@/components/ui/DownloadButton';
 import { PrivacyNotice } from '@/components/ui/PrivacyNotice';
+import { DiffWorkspace } from '@/components/tools/DiffWorkspace';
 import { trackEvent } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 
@@ -147,6 +148,10 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
   }
 
   if (!processor) return <ComingSoon tool={tool} />;
+
+  if (processor.layoutVariant === 'diff') {
+    return <DiffWorkspace tool={tool} processor={processor} />;
+  }
 
   return (
     <div className="space-y-4">

@@ -110,6 +110,8 @@ export interface ToolProcessor {
   exampleSecondary?: string;
   /** Declarative option controls rendered above the action bar */
   optionControls?: ToolOptionControl[];
+  /** Layout variant — 'diff' renders a split side-by-side diff view instead of ToolWorkspace */
+  layoutVariant?: 'default' | 'diff';
 }
 
 // ---------------------------------------------------------------------------
