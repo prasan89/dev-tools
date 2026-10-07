@@ -104,6 +104,12 @@ const UPCOMING_TOOLS = [
     href: '/pdf-tools/page-numbers',
     available: true,
   },
+  {
+    title: 'PDF Metadata Editor',
+    description: 'View, edit, or remove PDF document properties — title, author, subject, keywords, and dates.',
+    href: '/pdf-tools/pdf-metadata',
+    available: true,
+  },
 ];
 
 export default function PdfToolsPage() {
