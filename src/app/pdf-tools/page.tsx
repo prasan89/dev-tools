@@ -57,6 +57,12 @@ const UPCOMING_TOOLS = [
     available: true,
   },
   {
+    title: 'Organize PDF',
+    description: 'Rotate, delete, and reorder PDF pages. Drag and drop to rearrange.',
+    href: '/pdf-tools/organize-pdf',
+    available: true,
+  },
+  {
     title: 'PDF Watermark',
     description: 'Add text or image watermarks to PDF pages.',
     href: '/pdf-tools/watermark',
