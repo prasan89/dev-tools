@@ -8,6 +8,7 @@ interface DownloadButtonProps {
   mimeType?: string;
   disabled?: boolean;
   className?: string;
+  onDownload?: () => void;
 }
 
 export function DownloadButton({
@@ -16,6 +17,7 @@ export function DownloadButton({
   mimeType = 'text/plain',
   disabled,
   className,
+  onDownload,
 }: DownloadButtonProps) {
   const handleDownload = () => {
     if (!content) return;
@@ -26,6 +28,7 @@ export function DownloadButton({
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+    onDownload?.();
   };
 
   return (

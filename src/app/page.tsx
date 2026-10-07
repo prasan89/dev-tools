@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { CategoryCard } from '@/components/ui/CategoryCard';
 import { ToolCard } from '@/components/ui/ToolCard';
-import { CATEGORIES, TOOLS, getPopularTools, getToolsByCategory } from '@/lib/registry';
+import { getCategories, getEnabledTools, getPopularTools, getToolsByCategory } from '@/lib/registry';
 
 export const metadata: Metadata = {
   title: 'DevToolsHub — Developer Tools That Just Work',
@@ -12,6 +12,8 @@ export const metadata: Metadata = {
 
 export default function HomePage() {
   const popularTools = getPopularTools();
+  const allTools = getEnabledTools();
+  const categories = getCategories();
 
   return (
     <>
@@ -27,7 +29,7 @@ export default function HomePage() {
           <div className="mt-6 max-w-lg mx-auto">
             <SearchBar
               size="large"
-              placeholder="Search JSON formatter, Base64, UUID..."
+              placeholder={`Search ${allTools.length}+ tools…`}
             />
           </div>
           <p className="mt-3 text-xs text-gray-400 dark:text-gray-600">
@@ -46,7 +48,7 @@ export default function HomePage() {
             Browse by Category
           </h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {CATEGORIES.map((cat) => (
+            {categories.map((cat) => (
               <CategoryCard
                 key={cat.id}
                 category={cat}
@@ -80,7 +82,7 @@ export default function HomePage() {
             All Tools
           </h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {TOOLS.map((tool) => (
+            {allTools.map((tool) => (
               <ToolCard key={tool.slug} tool={tool} />
             ))}
           </div>

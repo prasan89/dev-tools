@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { cn, categoryColor } from '@/lib/utils';
+import { cn } from '@/lib/utils';
+import { getCategoryColors } from '@/lib/registry';
 import { Category } from '@/types/tool';
 
 interface CategoryCardProps {
@@ -9,11 +10,11 @@ interface CategoryCardProps {
 }
 
 export function CategoryCard({ category, toolCount, className }: CategoryCardProps) {
-  const colors = categoryColor(category.color);
+  const colors = getCategoryColors(category.color);
 
   return (
     <Link
-      href={`/?category=${category.id}`}
+      href={`/tools/category/${category.slug}`}
       className={cn(
         'group flex flex-col gap-3 rounded-xl border p-5',
         colors.border,

@@ -31,16 +31,16 @@ export function ToolCard({ tool, className }: ToolCardProps) {
         >
           {tool.icon}
         </span>
-        {(tool.popular || tool.new) && (
+        {(tool.popular || tool.isNew) && (
           <span
             className={cn(
               'rounded px-1.5 py-0.5 text-xs font-medium',
-              tool.new
+              tool.isNew
                 ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400'
                 : 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400'
             )}
           >
-            {tool.new ? 'New' : 'Popular'}
+            {tool.isNew ? 'New' : 'Popular'}
           </span>
         )}
       </div>

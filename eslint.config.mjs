@@ -17,6 +17,8 @@ const eslintConfig = defineConfig([
     rules: {
       // setMounted(true) in useEffect is the canonical next-themes hydration pattern
       "react-hooks/set-state-in-effect": "off",
+      // Allow console.debug in analytics dev provider
+      "no-console": ["warn", { allow: ["debug", "warn", "error"] }],
     },
   },
 ]);

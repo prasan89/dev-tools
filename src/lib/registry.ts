@@ -1,8 +1,13 @@
-import { Tool, Category } from '@/types/tool';
+import { ToolDefinition, Category, ToolCategoryId } from '@/types/tool';
+
+// ---------------------------------------------------------------------------
+// Categories
+// ---------------------------------------------------------------------------
 
 export const CATEGORIES: Category[] = [
   {
     id: 'json',
+    slug: 'json',
     name: 'JSON Tools',
     description: 'Format, validate, transform, and query JSON data',
     icon: '{ }',
@@ -10,6 +15,7 @@ export const CATEGORIES: Category[] = [
   },
   {
     id: 'encoding',
+    slug: 'encoding',
     name: 'Encoding Tools',
     description: 'Base64, URL encode/decode, hash, and cipher utilities',
     icon: '⇄',
@@ -17,13 +23,15 @@ export const CATEGORIES: Category[] = [
   },
   {
     id: 'developer',
+    slug: 'developer',
     name: 'Developer Tools',
     description: 'Code formatters, linters, diff tools, and generators',
-    icon: '</> ',
+    icon: '</>',
     color: 'green',
   },
   {
     id: 'data-code',
+    slug: 'data-code',
     name: 'Data & Code',
     description: 'CSV, regex, SQL, and data transformation tools',
     icon: '⊞',
@@ -31,6 +39,7 @@ export const CATEGORIES: Category[] = [
   },
   {
     id: 'utilities',
+    slug: 'utilities',
     name: 'Utilities',
     description: 'Text tools, unit converters, color pickers, and more',
     icon: '⚙',
@@ -38,222 +47,491 @@ export const CATEGORIES: Category[] = [
   },
 ];
 
-export const TOOLS: Tool[] = [
+// ---------------------------------------------------------------------------
+// Tool registry
+// ---------------------------------------------------------------------------
+
+export const TOOLS: ToolDefinition[] = [
+  // JSON Tools
   {
+    id: 'json-formatter',
     name: 'JSON Formatter',
     slug: 'json-formatter',
     category: 'json',
-    description: 'Format and beautify JSON with syntax highlighting',
+    description: 'Format and beautify JSON with proper indentation',
     longDescription:
-      'Paste your JSON data and get it formatted with proper indentation, syntax highlighting, and error detection. Supports minification and validation.',
+      'Paste your JSON data and get it formatted with proper indentation and error detection. Supports 2-space and 4-space indentation. Copy or download the formatted result.',
     icon: '{ }',
-    keywords: ['json', 'format', 'beautify', 'pretty print', 'indent'],
-    relatedTools: ['json-validator', 'json-minifier'],
+    keywords: ['json', 'format', 'beautify', 'pretty print', 'indent', 'prettify', 'json formatter', 'json beautifier'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['json-validator', 'json-minifier', 'json-diff'],
     popular: true,
-    seo: {
-      title: 'JSON Formatter & Beautifier — DevToolsHub',
-      description:
-        'Free online JSON formatter. Format, beautify, and validate JSON with syntax highlighting.',
-    },
+    order: 1,
+    seoTitle: 'JSON Formatter & Beautifier — Free Online Tool',
+    seoDescription:
+      'Free online JSON formatter and beautifier. Format, pretty print, and validate JSON with 2 or 4 space indentation. Works entirely in your browser — your data stays private.',
   },
   {
+    id: 'json-validator',
     name: 'JSON Validator',
     slug: 'json-validator',
     category: 'json',
-    description: 'Validate JSON syntax and check for errors',
+    description: 'Validate JSON syntax and get detailed error messages',
+    longDescription:
+      'Instantly validates your JSON and shows exactly what is wrong — including line number and column for syntax errors. No data leaves your browser.',
     icon: '✓',
-    keywords: ['json', 'validate', 'lint', 'check', 'syntax'],
-    relatedTools: ['json-formatter', 'json-minifier'],
+    keywords: ['json', 'validate', 'lint', 'check', 'syntax', 'error', 'json validator', 'json syntax checker', 'check json'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['json-formatter', 'json-minifier', 'json-diff'],
     popular: true,
-    seo: {
-      title: 'JSON Validator — DevToolsHub',
-      description: 'Validate your JSON syntax instantly. Free and privacy-friendly.',
-    },
+    order: 2,
+    seoTitle: 'JSON Validator — Free Online JSON Syntax Checker',
+    seoDescription:
+      'Validate JSON syntax instantly with detailed error messages, line numbers, and context. Free, private, and works entirely in your browser.',
   },
   {
+    id: 'json-minifier',
     name: 'JSON Minifier',
     slug: 'json-minifier',
     category: 'json',
-    description: 'Minify JSON to reduce file size',
+    description: 'Remove whitespace from JSON to reduce file size',
+    longDescription:
+      'Minify JSON by parsing and re-serializing without whitespace. Shows original size, minified size, and savings percentage. Safe minification that preserves all data exactly.',
     icon: '⊞',
-    keywords: ['json', 'minify', 'compress', 'shrink'],
-    relatedTools: ['json-formatter'],
-    seo: {
-      title: 'JSON Minifier — DevToolsHub',
-      description: 'Minify and compress JSON data. Free online tool.',
-    },
+    keywords: ['json', 'minify', 'compress', 'shrink', 'reduce', 'json minifier', 'compress json', 'json compressor'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['json-formatter', 'json-validator', 'json-diff'],
+    order: 3,
+    seoTitle: 'JSON Minifier — Compress JSON Online',
+    seoDescription:
+      'Minify and compress JSON data online. Remove whitespace safely by parsing and re-serializing. See exact bytes saved. Free and browser-only.',
   },
   {
+    id: 'json-diff',
+    name: 'JSON Diff',
+    slug: 'json-diff',
+    category: 'json',
+    description: 'Compare two JSON documents and highlight differences',
+    longDescription:
+      'Paste two JSON documents side by side and see exactly what changed — added keys, removed keys, and changed values. Supports nested objects and arrays. Comparison is positional for arrays.',
+    icon: '±',
+    keywords: ['json', 'diff', 'compare', 'difference', 'json diff', 'compare json', 'json comparison', 'compare json files'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['json-formatter', 'json-validator', 'json-minifier'],
+    popular: true,
+    order: 4,
+    seoTitle: 'JSON Diff — Compare Two JSON Files Online',
+    seoDescription:
+      'Compare two JSON documents and see exactly what changed. Highlights added, removed, and changed values including nested structures. Free and browser-only.',
+  },
+
+  // Encoding Tools
+  {
+    id: 'base64',
     name: 'Base64 Encoder/Decoder',
     slug: 'base64',
     category: 'encoding',
     description: 'Encode or decode Base64 strings instantly',
     icon: '⇄',
-    keywords: ['base64', 'encode', 'decode', 'binary', 'text'],
+    keywords: ['base64', 'encode', 'decode', 'binary', 'text', 'atob', 'btoa'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['url-encode', 'hash-generator'],
     popular: true,
-    seo: {
-      title: 'Base64 Encoder/Decoder — DevToolsHub',
-      description: 'Encode and decode Base64 strings online. Free and instant.',
-    },
+    order: 1,
+    seoTitle: 'Base64 Encoder/Decoder',
+    seoDescription:
+      'Encode and decode Base64 strings online. Free and instant — processes locally in your browser.',
   },
   {
+    id: 'url-encode',
     name: 'URL Encoder/Decoder',
     slug: 'url-encode',
     category: 'encoding',
     description: 'Encode or decode URL/percent-encoded strings',
     icon: '🔗',
-    keywords: ['url', 'encode', 'decode', 'percent', 'uri'],
+    keywords: ['url', 'encode', 'decode', 'percent', 'uri', 'urlencode', 'urldecode'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['base64', 'html-encode'],
     popular: true,
-    seo: {
-      title: 'URL Encoder/Decoder — DevToolsHub',
-      description: 'Encode and decode URL strings. Percent-encoding support.',
-    },
+    order: 2,
+    seoTitle: 'URL Encoder/Decoder',
+    seoDescription:
+      'Encode and decode URL strings. Percent-encoding support — works in your browser.',
   },
   {
+    id: 'hash-generator',
     name: 'Hash Generator',
     slug: 'hash-generator',
     category: 'encoding',
     description: 'Generate MD5, SHA-1, SHA-256 and other hashes',
     icon: '#',
-    keywords: ['hash', 'md5', 'sha', 'sha256', 'sha1', 'checksum'],
-    seo: {
-      title: 'Hash Generator — DevToolsHub',
-      description: 'Generate cryptographic hashes: MD5, SHA-1, SHA-256, SHA-512.',
-    },
+    keywords: ['hash', 'md5', 'sha', 'sha256', 'sha1', 'checksum', 'sha512', 'hmac'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['base64'],
+    order: 3,
+    seoTitle: 'Hash Generator',
+    seoDescription:
+      'Generate cryptographic hashes: MD5, SHA-1, SHA-256, SHA-512. All processing happens locally.',
   },
   {
+    id: 'html-encode',
+    name: 'HTML Encoder/Decoder',
+    slug: 'html-encode',
+    category: 'encoding',
+    description: 'Encode or decode HTML entities',
+    icon: '&amp;',
+    keywords: ['html', 'encode', 'decode', 'entities', 'escape', 'unescape', 'htmlentities'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['url-encode', 'base64'],
+    order: 4,
+    seoTitle: 'HTML Encoder/Decoder',
+    seoDescription:
+      'Encode and decode HTML entities online. Convert special characters to HTML entities and back.',
+  },
+
+  // Developer Tools
+  {
+    id: 'html-formatter',
     name: 'HTML Formatter',
     slug: 'html-formatter',
     category: 'developer',
     description: 'Format and beautify HTML markup',
     icon: '</>',
-    keywords: ['html', 'format', 'beautify', 'indent', 'markup'],
-    seo: {
-      title: 'HTML Formatter — DevToolsHub',
-      description: 'Format and beautify HTML markup with proper indentation.',
-    },
+    keywords: ['html', 'format', 'beautify', 'indent', 'markup', 'tidy'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['css-formatter', 'diff-checker'],
+    order: 1,
+    seoTitle: 'HTML Formatter',
+    seoDescription:
+      'Format and beautify HTML markup with proper indentation. Free online HTML formatter.',
   },
   {
+    id: 'css-formatter',
     name: 'CSS Formatter',
     slug: 'css-formatter',
     category: 'developer',
     description: 'Format and beautify CSS stylesheets',
     icon: '#{}',
-    keywords: ['css', 'format', 'beautify', 'style'],
-    seo: {
-      title: 'CSS Formatter — DevToolsHub',
-      description: 'Format and beautify CSS stylesheets online.',
-    },
+    keywords: ['css', 'format', 'beautify', 'style', 'stylesheet', 'indent'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['html-formatter', 'diff-checker'],
+    order: 2,
+    seoTitle: 'CSS Formatter',
+    seoDescription: 'Format and beautify CSS stylesheets online. Free CSS prettifier.',
   },
   {
+    id: 'diff-checker',
     name: 'Diff Checker',
     slug: 'diff-checker',
     category: 'developer',
     description: 'Compare two text blocks and highlight differences',
     icon: '±',
-    keywords: ['diff', 'compare', 'text', 'difference', 'changes'],
+    keywords: ['diff', 'compare', 'text', 'difference', 'changes', 'merge', 'patch'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['json-formatter', 'html-formatter'],
     popular: true,
-    seo: {
-      title: 'Diff Checker — DevToolsHub',
-      description: 'Compare two text blocks side by side. See all differences.',
-    },
+    order: 3,
+    seoTitle: 'Diff Checker',
+    seoDescription:
+      'Compare two text blocks side by side. Highlight all differences. Free online diff tool.',
   },
   {
+    id: 'uuid-generator',
     name: 'UUID Generator',
     slug: 'uuid-generator',
     category: 'developer',
     description: 'Generate random UUIDs (v4) instantly',
     icon: '⊛',
-    keywords: ['uuid', 'guid', 'random', 'generate', 'id'],
+    keywords: ['uuid', 'guid', 'random', 'generate', 'id', 'unique', 'v4'],
+    enabled: true,
+    privacySensitive: false,
+    relatedTools: ['hash-generator'],
     popular: true,
-    seo: {
-      title: 'UUID Generator — DevToolsHub',
-      description: 'Generate random UUID v4 strings. Bulk generation supported.',
-    },
+    order: 4,
+    seoTitle: 'UUID Generator',
+    seoDescription:
+      'Generate random UUID v4 strings online. Bulk generation supported — instant and free.',
   },
   {
+    id: 'jwt-decoder',
+    name: 'JWT Decoder',
+    slug: 'jwt-decoder',
+    category: 'developer',
+    description: 'Decode and inspect JWT tokens without verification',
+    icon: 'JWT',
+    keywords: ['jwt', 'json web token', 'decode', 'header', 'payload', 'token', 'bearer'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['base64', 'json-formatter'],
+    popular: true,
+    order: 5,
+    seoTitle: 'JWT Decoder',
+    seoDescription:
+      'Decode and inspect JWT (JSON Web Token) headers and payloads. Works locally — your token never leaves the browser.',
+  },
+
+  // Data & Code
+  {
+    id: 'regex-tester',
     name: 'Regex Tester',
     slug: 'regex-tester',
     category: 'data-code',
     description: 'Test and debug regular expressions in real-time',
     icon: '.*',
-    keywords: ['regex', 'regexp', 'regular expression', 'pattern', 'match'],
+    keywords: ['regex', 'regexp', 'regular expression', 'pattern', 'match', 'test', 'debug'],
+    enabled: true,
+    privacySensitive: false,
+    relatedTools: ['csv-to-json'],
     popular: true,
-    seo: {
-      title: 'Regex Tester — DevToolsHub',
-      description: 'Test regular expressions with real-time matching and highlighting.',
-    },
+    order: 1,
+    seoTitle: 'Regex Tester',
+    seoDescription:
+      'Test regular expressions with real-time matching and highlighting. Free online regex tester.',
   },
   {
+    id: 'csv-to-json',
     name: 'CSV to JSON',
     slug: 'csv-to-json',
     category: 'data-code',
     description: 'Convert CSV data to JSON format',
     icon: '⇒',
-    keywords: ['csv', 'json', 'convert', 'transform', 'data'],
-    seo: {
-      title: 'CSV to JSON Converter — DevToolsHub',
-      description: 'Convert CSV files and text to JSON format online.',
-    },
+    keywords: ['csv', 'json', 'convert', 'transform', 'data', 'spreadsheet', 'excel'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['json-formatter', 'regex-tester'],
+    order: 2,
+    seoTitle: 'CSV to JSON Converter',
+    seoDescription:
+      'Convert CSV files and text to JSON format online. Free and privacy-friendly.',
   },
   {
+    id: 'markdown-preview',
     name: 'Markdown Preview',
     slug: 'markdown-preview',
     category: 'data-code',
     description: 'Preview and render Markdown in real-time',
     icon: 'Md',
-    keywords: ['markdown', 'preview', 'render', 'md', 'text'],
-    seo: {
-      title: 'Markdown Preview — DevToolsHub',
-      description: 'Live Markdown preview and rendering. Write and see the result.',
-    },
+    keywords: ['markdown', 'preview', 'render', 'md', 'text', 'html', 'commonmark'],
+    enabled: true,
+    privacySensitive: false,
+    relatedTools: ['html-formatter', 'diff-checker'],
+    order: 3,
+    seoTitle: 'Markdown Preview',
+    seoDescription:
+      'Live Markdown preview and rendering. Write and see the result instantly — free online tool.',
   },
+
+  // Utilities
   {
+    id: 'word-counter',
     name: 'Word Counter',
     slug: 'word-counter',
     category: 'utilities',
     description: 'Count words, characters, lines, and sentences',
     icon: 'W',
-    keywords: ['word', 'count', 'character', 'text', 'words'],
+    keywords: ['word', 'count', 'character', 'text', 'words', 'lines', 'sentences', 'paragraphs'],
+    enabled: true,
+    privacySensitive: false,
+    relatedTools: ['markdown-preview', 'diff-checker'],
     popular: true,
-    seo: {
-      title: 'Word Counter — DevToolsHub',
-      description: 'Count words, characters, paragraphs, and more.',
-    },
+    order: 1,
+    seoTitle: 'Word Counter',
+    seoDescription:
+      'Count words, characters, paragraphs, and more. Free online word counter tool.',
   },
   {
+    id: 'color-picker',
     name: 'Color Picker',
     slug: 'color-picker',
     category: 'utilities',
     description: 'Pick colors and convert between HEX, RGB, HSL formats',
     icon: '◉',
-    keywords: ['color', 'hex', 'rgb', 'hsl', 'picker', 'converter'],
-    seo: {
-      title: 'Color Picker & Converter — DevToolsHub',
-      description: 'Pick colors and convert between HEX, RGB, HSL, and more.',
-    },
+    keywords: ['color', 'hex', 'rgb', 'hsl', 'picker', 'converter', 'palette', 'rgba'],
+    enabled: true,
+    privacySensitive: false,
+    relatedTools: ['css-formatter'],
+    order: 2,
+    seoTitle: 'Color Picker & Converter',
+    seoDescription:
+      'Pick colors and convert between HEX, RGB, HSL, and more. Free online color converter.',
   },
 ];
 
-export function getToolBySlug(slug: string): Tool | undefined {
-  return TOOLS.find((t) => t.slug === slug);
+// ---------------------------------------------------------------------------
+// Integrity check — runs once at module init in dev/test
+// ---------------------------------------------------------------------------
+
+function assertRegistryIntegrity() {
+  if (process.env.NODE_ENV === 'production') return;
+  const ids = new Set<string>();
+  const slugs = new Set<string>();
+  const validCategories = new Set(CATEGORIES.map((c) => c.id));
+
+  for (const tool of TOOLS) {
+    if (ids.has(tool.id)) {
+      throw new Error(`[registry] Duplicate tool id: "${tool.id}"`);
+    }
+    if (slugs.has(tool.slug)) {
+      throw new Error(`[registry] Duplicate tool slug: "${tool.slug}"`);
+    }
+    if (!validCategories.has(tool.category)) {
+      throw new Error(
+        `[registry] Tool "${tool.id}" has unknown category: "${tool.category}"`
+      );
+    }
+    if (!tool.seoTitle) {
+      throw new Error(`[registry] Tool "${tool.id}" is missing seoTitle`);
+    }
+    if (!tool.seoDescription) {
+      throw new Error(`[registry] Tool "${tool.id}" is missing seoDescription`);
+    }
+    ids.add(tool.id);
+    slugs.add(tool.slug);
+  }
 }
 
-export function getToolsByCategory(category: string): Tool[] {
-  return TOOLS.filter((t) => t.category === category);
+assertRegistryIntegrity();
+
+// ---------------------------------------------------------------------------
+// Memoized indexes (built once, never rebuilt)
+// ---------------------------------------------------------------------------
+
+const byId = new Map<string, ToolDefinition>(TOOLS.map((t) => [t.id, t]));
+const bySlug = new Map<string, ToolDefinition>(TOOLS.map((t) => [t.slug, t]));
+const byCategory = new Map<ToolCategoryId, ToolDefinition[]>();
+const categoryById = new Map<string, Category>(CATEGORIES.map((c) => [c.id, c]));
+const categoryBySlug = new Map<string, Category>(CATEGORIES.map((c) => [c.slug, c]));
+
+for (const tool of TOOLS) {
+  if (!byCategory.has(tool.category)) byCategory.set(tool.category, []);
+  byCategory.get(tool.category)!.push(tool);
 }
 
-export function getPopularTools(): Tool[] {
-  return TOOLS.filter((t) => t.popular);
+// Pre-build lowercase search tokens for O(n) linear scan with fast string ops
+const searchIndex = TOOLS.filter((t) => t.enabled).map((t) => ({
+  tool: t,
+  tokens: [
+    t.name,
+    t.slug,
+    t.description,
+    t.category,
+    ...(t.keywords ?? []),
+  ]
+    .join(' ')
+    .toLowerCase(),
+}));
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+export function getAllTools(): ToolDefinition[] {
+  return TOOLS;
 }
 
-export function searchTools(query: string): Tool[] {
+export function getEnabledTools(): ToolDefinition[] {
+  return TOOLS.filter((t) => t.enabled);
+}
+
+export function getToolById(id: string): ToolDefinition | undefined {
+  return byId.get(id);
+}
+
+export function getToolBySlug(slug: string): ToolDefinition | undefined {
+  return bySlug.get(slug);
+}
+
+export function getToolsByCategory(category: ToolCategoryId | string): ToolDefinition[] {
+  return (byCategory.get(category as ToolCategoryId) ?? []).filter((t) => t.enabled);
+}
+
+export function getPopularTools(): ToolDefinition[] {
+  return TOOLS.filter((t) => t.enabled && t.popular);
+}
+
+export function searchTools(query: string): ToolDefinition[] {
   const q = query.toLowerCase().trim();
-  if (!q) return TOOLS;
-  return TOOLS.filter(
-    (t) =>
-      t.name.toLowerCase().includes(q) ||
-      t.description.toLowerCase().includes(q) ||
-      t.keywords.some((k) => k.includes(q))
-  );
+  if (!q) return getEnabledTools();
+  return searchIndex
+    .filter(({ tokens }) => tokens.includes(q) || tokens.split(' ').some((tok) => tok.startsWith(q)) || tokens.includes(q))
+    .map(({ tool }) => tool);
+}
+
+export function getRelatedTools(tool: ToolDefinition, limit = 4): ToolDefinition[] {
+  // 1. Use explicit relatedTools list first
+  if (tool.relatedTools && tool.relatedTools.length > 0) {
+    const explicit = tool.relatedTools
+      .map((id) => getToolById(id))
+      .filter((t): t is ToolDefinition => !!t && t.enabled && t.id !== tool.id)
+      .slice(0, limit);
+    if (explicit.length > 0) return explicit;
+  }
+  // 2. Fall back to same-category tools
+  return getToolsByCategory(tool.category)
+    .filter((t) => t.id !== tool.id && t.enabled)
+    .slice(0, limit);
+}
+
+export function getCategories(): Category[] {
+  return CATEGORIES;
+}
+
+export function getCategoryById(id: string): Category | undefined {
+  return categoryById.get(id);
+}
+
+export function getCategoryBySlug(slug: string): Category | undefined {
+  return categoryBySlug.get(slug);
+}
+
+// ---------------------------------------------------------------------------
+// Colour helpers (used by UI components)
+// ---------------------------------------------------------------------------
+
+export type ColorKey = 'blue' | 'purple' | 'green' | 'orange' | 'gray';
+
+export const CATEGORY_COLORS: Record<
+  ColorKey,
+  { bg: string; text: string; border: string }
+> = {
+  blue: {
+    bg: 'bg-blue-50 dark:bg-blue-950/30',
+    text: 'text-blue-700 dark:text-blue-400',
+    border: 'border-blue-200 dark:border-blue-800',
+  },
+  purple: {
+    bg: 'bg-purple-50 dark:bg-purple-950/30',
+    text: 'text-purple-700 dark:text-purple-400',
+    border: 'border-purple-200 dark:border-purple-800',
+  },
+  green: {
+    bg: 'bg-green-50 dark:bg-green-950/30',
+    text: 'text-green-700 dark:text-green-400',
+    border: 'border-green-200 dark:border-green-800',
+  },
+  orange: {
+    bg: 'bg-orange-50 dark:bg-orange-950/30',
+    text: 'text-orange-700 dark:text-orange-400',
+    border: 'border-orange-200 dark:border-orange-800',
+  },
+  gray: {
+    bg: 'bg-gray-50 dark:bg-gray-900/30',
+    text: 'text-gray-700 dark:text-gray-400',
+    border: 'border-gray-200 dark:border-gray-700',
+  },
+};
+
+export function getCategoryColors(color: string) {
+  return CATEGORY_COLORS[color as ColorKey] ?? CATEGORY_COLORS.gray;
 }

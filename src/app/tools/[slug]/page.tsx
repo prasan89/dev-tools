@@ -1,31 +1,45 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { getToolBySlug, TOOLS } from '@/lib/registry';
+import { getToolBySlug, getEnabledTools, getCategoryById } from '@/lib/registry';
 import { ToolLayout } from '@/components/tools/ToolLayout';
-import { PlaceholderTool } from './PlaceholderTool';
+import { ToolWorkspace } from '@/components/tools/ToolWorkspace';
+import { ToolErrorBoundary } from '@/components/tools/ToolErrorBoundary';
 
 interface ToolPageProps {
   params: Promise<{ slug: string }>;
 }
 
+// Pre-render all enabled tools at build time
 export async function generateStaticParams() {
-  return TOOLS.map((tool) => ({ slug: tool.slug }));
+  return getEnabledTools().map((tool) => ({ slug: tool.slug }));
 }
 
 export async function generateMetadata({ params }: ToolPageProps): Promise<Metadata> {
   const { slug } = await params;
   const tool = getToolBySlug(slug);
-  if (!tool) return { title: 'Tool Not Found' };
+  if (!tool || !tool.enabled) return { title: 'Tool Not Found' };
+
+  const category = getCategoryById(tool.category);
+  const canonical = `/tools/${slug}`;
 
   return {
-    title: tool.seo?.title || `${tool.name} — DevToolsHub`,
-    description: tool.seo?.description || tool.description,
-    alternates: {
-      canonical: `/tools/${slug}`,
-    },
+    title: tool.seoTitle,
+    description: tool.seoDescription,
+    alternates: { canonical },
     openGraph: {
-      title: tool.seo?.title || `${tool.name} — DevToolsHub`,
-      description: tool.seo?.description || tool.description,
+      title: `${tool.seoTitle} — DevToolsHub`,
+      description: tool.seoDescription,
+      url: canonical,
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${tool.seoTitle} — DevToolsHub`,
+      description: tool.seoDescription,
+    },
+    keywords: tool.keywords,
+    other: {
+      'article:section': category?.name ?? '',
     },
   };
 }
@@ -33,11 +47,15 @@ export async function generateMetadata({ params }: ToolPageProps): Promise<Metad
 export default async function ToolPage({ params }: ToolPageProps) {
   const { slug } = await params;
   const tool = getToolBySlug(slug);
-  if (!tool) notFound();
+
+  // Return 404 for unknown or disabled tools
+  if (!tool || !tool.enabled) notFound();
 
   return (
     <ToolLayout tool={tool}>
-      <PlaceholderTool tool={tool} />
+      <ToolErrorBoundary toolName={tool.name}>
+        <ToolWorkspace tool={tool} />
+      </ToolErrorBoundary>
     </ToolLayout>
   );
 }

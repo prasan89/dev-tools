@@ -7,9 +7,10 @@ interface CopyButtonProps {
   text: string;
   className?: string;
   size?: 'sm' | 'md';
+  onCopy?: () => void;
 }
 
-export function CopyButton({ text, className, size = 'md' }: CopyButtonProps) {
+export function CopyButton({ text, className, size = 'md', onCopy }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(async () => {
@@ -18,6 +19,7 @@ export function CopyButton({ text, className, size = 'md' }: CopyButtonProps) {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+      onCopy?.();
     } catch {
       // fallback for older browsers
       const el = document.createElement('textarea');
@@ -28,8 +30,9 @@ export function CopyButton({ text, className, size = 'md' }: CopyButtonProps) {
       document.body.removeChild(el);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+      onCopy?.();
     }
-  }, [text]);
+  }, [text, onCopy]);
 
   return (
     <button
