@@ -30,6 +30,13 @@ export function Header() {
 
           {/* Right actions */}
           <div className="flex items-center gap-2 ml-auto">
+            <Link
+              href="/donate"
+              className="hidden sm:inline-flex items-center gap-1 rounded-lg border border-pink-200 dark:border-pink-900 bg-pink-50 dark:bg-pink-950/30 px-3 py-1.5 text-xs font-medium text-pink-600 dark:text-pink-400 hover:bg-pink-100 dark:hover:bg-pink-950/60 transition-colors"
+            >
+              <span aria-hidden="true">❤️</span>
+              Donate
+            </Link>
             <ThemeSwitcher />
             <MobileNav />
           </div>

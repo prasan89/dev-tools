@@ -71,6 +71,22 @@ export function Footer() {
 
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-900 dark:text-gray-100 mb-3">
+              Support
+            </h3>
+            <ul className="space-y-2">
+              <li>
+                <Link
+                  href="/donate"
+                  className="text-xs text-pink-500 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 transition-colors font-medium"
+                >
+                  ❤️ Support ToolBook
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-900 dark:text-gray-100 mb-3">
               Legal
             </h3>
             <ul className="space-y-2">

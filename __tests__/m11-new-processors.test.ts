@@ -202,7 +202,10 @@ describe('diff-checker', () => {
 
   it('reports identical texts', () => {
     const r = run2(diffCheckerProcessor, 'hello\nworld', 'hello\nworld');
-    expect(r.output?.value).toContain('no differences');
+    // With layoutVariant:'diff', output is structured JSON
+    const data = JSON.parse(r.output?.value ?? '{}');
+    expect(data.stats?.added).toBe(0);
+    expect(data.stats?.removed).toBe(0);
   });
 
   it('detects added lines', () => {
@@ -224,12 +227,14 @@ describe('diff-checker', () => {
 
   it('marks added lines with +', () => {
     const r = run2(diffCheckerProcessor, 'a', 'a\nb');
-    expect(r.output?.value).toContain('+');
+    const data = JSON.parse(r.output?.value ?? '{}');
+    expect(data.lines?.some((l: { type: string }) => l.type === 'added')).toBe(true);
   });
 
   it('marks removed lines with -', () => {
     const r = run2(diffCheckerProcessor, 'a\nb', 'a');
-    expect(r.output?.value).toContain('-');
+    const data = JSON.parse(r.output?.value ?? '{}');
+    expect(data.lines?.some((l: { type: string }) => l.type === 'removed')).toBe(true);
   });
 
   it('output is copyable and downloadable', () => {

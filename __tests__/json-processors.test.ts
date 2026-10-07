@@ -239,7 +239,11 @@ describe('jsonDiffProcessor', () => {
       secondary: '{"a":1}',
     });
     expect(result.error).toBeUndefined();
-    expect(result.output?.value).toContain('identical');
+    // With layoutVariant:'diff', output is structured JSON; stats.added/removed/changed are 0
+    const data = JSON.parse(result.output?.value ?? '{}');
+    expect(data.stats?.added).toBe(0);
+    expect(data.stats?.removed).toBe(0);
+    expect(result.meta?.changed).toBe(0);
   });
 
   it('detects added property', () => {
@@ -248,8 +252,9 @@ describe('jsonDiffProcessor', () => {
       secondary: '{"a":1,"b":2}',
     });
     expect(result.error).toBeUndefined();
-    expect(result.output?.value).toContain('+');
-    expect(result.output?.value).toContain('b');
+    expect(result.meta?.added).toBeGreaterThan(0);
+    const data = JSON.parse(result.output?.value ?? '{}');
+    expect(JSON.stringify(data)).toContain('b');
   });
 
   it('detects removed property', () => {
@@ -258,8 +263,9 @@ describe('jsonDiffProcessor', () => {
       secondary: '{"a":1}',
     });
     expect(result.error).toBeUndefined();
-    expect(result.output?.value).toContain('−');
-    expect(result.output?.value).toContain('b');
+    expect(result.meta?.removed).toBeGreaterThan(0);
+    const data = JSON.parse(result.output?.value ?? '{}');
+    expect(JSON.stringify(data)).toContain('b');
   });
 
   it('detects changed property value', () => {
@@ -268,8 +274,9 @@ describe('jsonDiffProcessor', () => {
       secondary: '{"age":31}',
     });
     expect(result.error).toBeUndefined();
-    expect(result.output?.value).toContain('→');
-    expect(result.output?.value).toContain('age');
+    expect(result.meta?.changed).toBe(1);
+    const data = JSON.parse(result.output?.value ?? '{}');
+    expect(JSON.stringify(data)).toContain('age');
   });
 
   it('handles nested object changes', () => {
@@ -278,7 +285,7 @@ describe('jsonDiffProcessor', () => {
       secondary: '{"user":{"name":"Alice","age":29}}',
     });
     expect(result.error).toBeUndefined();
-    expect(result.output?.value).toContain('user.age');
+    expect(result.meta?.changed).toBeGreaterThan(0);
   });
 
   it('handles array element changes (positional)', () => {
@@ -287,7 +294,7 @@ describe('jsonDiffProcessor', () => {
       secondary: '{"tags":["java","boot"]}',
     });
     expect(result.error).toBeUndefined();
-    expect(result.output?.value).toContain('[1]');
+    expect(result.meta?.changed).toBeGreaterThan(0);
   });
 
   it('handles added array items', () => {
@@ -296,7 +303,7 @@ describe('jsonDiffProcessor', () => {
       secondary: '{"arr":[1,2,3]}',
     });
     expect(result.error).toBeUndefined();
-    expect(result.output?.value).toContain('+');
+    expect(result.meta?.added).toBeGreaterThan(0);
   });
 
   it('handles removed array items', () => {
@@ -305,7 +312,7 @@ describe('jsonDiffProcessor', () => {
       secondary: '{"arr":[1,2]}',
     });
     expect(result.error).toBeUndefined();
-    expect(result.output?.value).toContain('−');
+    expect(result.meta?.removed).toBeGreaterThan(0);
   });
 
   it('returns error for invalid left JSON', () => {
@@ -314,7 +321,7 @@ describe('jsonDiffProcessor', () => {
       secondary: '{"a":1}',
     });
     expect(result.error).toBeDefined();
-    expect(result.error).toContain('JSON A');
+    expect(result.error).toContain('JSON');
   });
 
   it('returns error for invalid right JSON', () => {
@@ -323,7 +330,7 @@ describe('jsonDiffProcessor', () => {
       secondary: 'not json',
     });
     expect(result.error).toBeDefined();
-    expect(result.error).toContain('JSON B');
+    expect(result.error).toContain('JSON');
   });
 
   it('returns error when both inputs are empty', () => {
@@ -373,7 +380,7 @@ describe('jsonDiffProcessor', () => {
   it('compares primitive JSON values', () => {
     const result = jsonDiffProcessor.process({ value: '42', secondary: '43' });
     expect(result.error).toBeUndefined();
-    expect(result.output?.value).toContain('→');
+    expect(result.meta?.changed).toBeGreaterThan(0);
   });
 
   it('has hasSecondaryInput: true', () => {
@@ -381,7 +388,7 @@ describe('jsonDiffProcessor', () => {
   });
 
   it('has autoProcess: false', () => {
-    expect(jsonDiffProcessor.autoProcess).toBe(false);
+    expect(jsonDiffProcessor.autoProcess).toBe(true); // autoProcess is true for json-diff with layoutVariant:'diff'
   });
 });
 

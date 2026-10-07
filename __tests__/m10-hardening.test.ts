@@ -157,7 +157,7 @@ describe('dangerouslySetInnerHTML safety', () => {
 // ---------------------------------------------------------------------------
 
 describe('No unexpected API routes', () => {
-  it('no custom route.ts files exist', () => {
+  it('no custom route.ts files exist outside allowed paths', () => {
     const appDir = path.join(srcDir, 'app');
     const routes: string[] = [];
     function findRoutes(dir: string) {
@@ -170,8 +170,14 @@ describe('No unexpected API routes', () => {
       }
     }
     findRoutes(appDir);
-    // sitemap.ts and robots.ts are conventions, not route files
-    expect(routes).toHaveLength(0);
+    // sitemap.ts and robots.ts are conventions, not route files.
+    // Donation API routes are intentional — all other routes are unexpected.
+    const allowedRoutes = [
+      'src/app/api/donations/create-order/route.ts',
+      'src/app/api/donations/verify/route.ts',
+    ];
+    const unexpected = routes.filter((r) => !allowedRoutes.includes(r));
+    expect(unexpected).toHaveLength(0);
   });
 });
 
