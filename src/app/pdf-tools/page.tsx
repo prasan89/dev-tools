@@ -63,6 +63,18 @@ const UPCOMING_TOOLS = [
     available: true,
   },
   {
+    title: 'Crop PDF',
+    description: 'Visually crop PDF pages to remove margins or whitespace.',
+    href: '/pdf-tools/crop-pdf',
+    available: true,
+  },
+  {
+    title: 'Extract Pages',
+    description: 'Extract specific pages or page ranges from a PDF into a new file.',
+    href: '/pdf-tools/extract-pages',
+    available: true,
+  },
+  {
     title: 'PDF Watermark',
     description: 'Add text or image watermarks to PDF pages.',
     href: '/pdf-tools/watermark',
