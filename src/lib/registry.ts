@@ -66,9 +66,9 @@ export const CATEGORIES: Category[] = [
       'A set of handy online utilities for everyday developer and power-user tasks. Convert units, manipulate text, pick colors, and more — all without leaving your browser tab. Each tool in this category is designed to be fast and self-contained, with no sign-up required.',
     icon: '⚙',
     color: 'gray',
-    seoTitle: 'Utility Tools — Miscellaneous Online Tools | DevToolsHub',
+    seoTitle: 'Utility Tools — Word Counter, Color Picker & More | DevToolsHub',
     seoDescription:
-      'Free online utility tools for everyday developer tasks.',
+      'Free online utility tools for developers: word counter, color picker, unit converters, and everyday browser-based tools — no sign-up required.',
   },
   {
     id: 'developer-utilities',
@@ -199,7 +199,7 @@ export const TOOLS: ToolDefinition[] = [
     order: 1,
     seoTitle: 'JSON Formatter & Beautifier — Free Online Tool',
     seoDescription:
-      'Free online JSON formatter and beautifier. Format, pretty print, and validate JSON with 2 or 4 space indentation. Works entirely in your browser — your data stays private.',
+      'Free online JSON formatter and beautifier. Pretty print and validate JSON with 2 or 4 space indentation. Works entirely in your browser — your data stays private.',
   },
   {
     id: 'json-validator',
@@ -382,9 +382,9 @@ export const TOOLS: ToolDefinition[] = [
     privacySensitive: true,
     relatedTools: ['base64-encoder'],
     order: 7,
-    seoTitle: 'Hash Generator',
+    seoTitle: 'Hash Generator — MD5, SHA-256, SHA-512 Online | DevToolsHub',
     seoDescription:
-      'Generate cryptographic hashes: MD5, SHA-1, SHA-256, SHA-512. All processing happens locally.',
+      'Generate cryptographic hashes online: MD5, SHA-1, SHA-256, SHA-384, SHA-512, and HMAC. All hashing runs in your browser — your input never leaves your device.',
   },
 
   // Developer Tools
@@ -400,9 +400,9 @@ export const TOOLS: ToolDefinition[] = [
     privacySensitive: true,
     relatedTools: ['css-formatter', 'diff-checker'],
     order: 1,
-    seoTitle: 'HTML Formatter',
+    seoTitle: 'HTML Formatter — Beautify & Indent HTML Online | DevToolsHub',
     seoDescription:
-      'Format and beautify HTML markup with proper indentation. Free online HTML formatter.',
+      'Format and beautify HTML markup online. Auto-indent tags, fix nesting, and clean up HTML from minifiers or code generators. Free, browser-based HTML formatter.',
   },
   {
     id: 'css-formatter',
@@ -416,8 +416,8 @@ export const TOOLS: ToolDefinition[] = [
     privacySensitive: true,
     relatedTools: ['html-formatter', 'diff-checker'],
     order: 2,
-    seoTitle: 'CSS Formatter',
-    seoDescription: 'Format and beautify CSS stylesheets online. Adds consistent indentation and spacing. Free online CSS formatter and prettifier.',
+    seoTitle: 'CSS Formatter — Beautify & Prettify CSS Online | DevToolsHub',
+    seoDescription: 'Format and beautify CSS stylesheets online. Adds consistent indentation, spacing, and line breaks. Free online CSS formatter and prettifier.',
   },
   {
     id: 'diff-checker',
@@ -432,9 +432,9 @@ export const TOOLS: ToolDefinition[] = [
     relatedTools: ['json-formatter', 'html-formatter'],
     popular: true,
     order: 3,
-    seoTitle: 'Diff Checker',
+    seoTitle: 'Diff Checker — Compare Two Text Files Online | DevToolsHub',
     seoDescription:
-      'Compare two text blocks side by side. Highlight all differences. Free online diff tool.',
+      'Compare two text blocks side by side and highlight every difference. Line-by-line and word-level diff with split and unified views. Free online diff checker.',
   },
   {
     id: 'uuid-generator',
@@ -529,7 +529,7 @@ export const TOOLS: ToolDefinition[] = [
     keywords: ['unix', 'timestamp', 'epoch', 'convert', 'date', 'time', 'utc', 'iso 8601', 'unix time', 'epoch converter'],
     enabled: true,
     privacySensitive: false,
-    relatedTools: ['timestamp-to-date'],
+    relatedTools: ['timestamp-to-date', 'date-to-unix-timestamp'],
     popular: true,
     isNew: true,
     order: 1,
@@ -936,7 +936,7 @@ export const TOOLS: ToolDefinition[] = [
     order: 1,
     seoTitle: 'Regex Tester — Test Regular Expressions Online',
     seoDescription:
-      'Test and debug regular expressions in your browser. See all matches, capture groups, and named groups with position info. Flags: g, i, m, s, u, y. Free and 100% browser-based.',
+      'Test and debug regular expressions in your browser. See all matches, capture groups, and named groups with position info. Supports g, i, m, s, u, y flags. Free.',
   },
 
   // SQL
@@ -1044,7 +1044,7 @@ export const TOOLS: ToolDefinition[] = [
     order: 5,
     seoTitle: 'JSON to CSV Converter — Free Online Tool',
     seoDescription:
-      'Convert JSON arrays to CSV online. Handles nested objects, Unicode, quoted commas, and missing fields. Supports comma, semicolon, tab, and pipe delimiters. Free and browser-only.',
+      'Convert JSON arrays to CSV online. Handles nested objects, quoted commas, missing fields, and multiple delimiters (comma, semicolon, tab, pipe). Free and browser-only.',
   },
   {
     id: 'csv-to-json',
@@ -1104,7 +1104,7 @@ export const TOOLS: ToolDefinition[] = [
     order: 8,
     seoTitle: 'JSON to XML Converter — Free Online Tool',
     seoDescription:
-      'Convert JSON to well-formed XML online. Handles nested objects, arrays, booleans, null, and Unicode. Configurable root element with safe XML escaping. Free and browser-only.',
+      'Convert JSON to well-formed XML online. Handles nested objects, arrays, booleans, null, and Unicode with safe XML escaping. Configurable root element. Free, browser-only.',
   },
 
   // Data & Code
@@ -1120,9 +1120,9 @@ export const TOOLS: ToolDefinition[] = [
     privacySensitive: false,
     relatedTools: ['html-formatter', 'diff-checker'],
     order: 3,
-    seoTitle: 'Markdown Preview',
+    seoTitle: 'Markdown Preview — Live Markdown Renderer Online | DevToolsHub',
     seoDescription:
-      'Live Markdown preview and rendering. Write and see the result instantly — free online tool.',
+      'Preview and render Markdown in real-time. Write CommonMark and see the formatted output instantly. Free online Markdown editor and previewer.',
   },
 
   // Utilities
@@ -1139,9 +1139,9 @@ export const TOOLS: ToolDefinition[] = [
     relatedTools: ['markdown-preview', 'diff-checker'],
     popular: true,
     order: 1,
-    seoTitle: 'Word Counter',
+    seoTitle: 'Word Counter — Count Words & Characters Online | DevToolsHub',
     seoDescription:
-      'Count words, characters, sentences, paragraphs, and reading time. Free online word and character counter tool.',
+      'Count words, characters, sentences, paragraphs, and estimated reading time. Free online word and character counter — paste any text for an instant analysis.',
   },
   {
     id: 'color-picker',
@@ -1155,9 +1155,9 @@ export const TOOLS: ToolDefinition[] = [
     privacySensitive: false,
     relatedTools: ['css-formatter'],
     order: 2,
-    seoTitle: 'Color Picker & Converter',
+    seoTitle: 'Color Picker & Converter — HEX, RGB, HSL Online | DevToolsHub',
     seoDescription:
-      'Pick colors and convert between HEX, RGB, HSL, and more. Free online color converter.',
+      'Pick colors visually and convert between HEX, RGB, RGBA, and HSL color formats. Free online color picker and color code converter for designers and developers.',
   },
 
   // JSON Utilities
@@ -1251,7 +1251,7 @@ export const TOOLS: ToolDefinition[] = [
     keywords: ['json repair', 'fix json', 'invalid json', 'malformed json', 'json fixer', 'json error fix'],
     enabled: true,
     privacySensitive: true,
-    relatedTools: ['json-validator', 'json-formatter', 'json-error-analyzer'],
+    relatedTools: ['json-validator', 'json-formatter', 'json-sorter'],
     popular: true,
     order: 13,
     seoTitle: 'JSON Repair Online — Fix Invalid JSON Free',
@@ -1382,7 +1382,7 @@ export const TOOLS: ToolDefinition[] = [
     order: 20,
     seoTitle: 'JSON to SQL — Convert JSON Array to SQL Online Free',
     seoDescription:
-      'Convert JSON array to SQL INSERT statements with automatic type inference. Generates CREATE TABLE and INSERT INTO for MySQL, PostgreSQL, SQLite. Free browser-only tool.',
+      'Convert JSON array to SQL INSERT statements with automatic type inference. Generates CREATE TABLE and INSERT INTO for MySQL, PostgreSQL, SQLite. Free browser-only.',
   },
   {
     id: 'json-to-markdown',

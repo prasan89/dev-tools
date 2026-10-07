@@ -136,7 +136,7 @@ export default function HomePage() {
                 <p>All tools run client-side. Your data never leaves your computer — no uploads, no tracking of inputs.</p>
               </div>
               <div>
-                <p className="font-medium text-gray-800 dark:text-gray-200 mb-1">90+ tools, always free</p>
+                <p className="font-medium text-gray-800 dark:text-gray-200 mb-1">{totalTools}+ tools, always free</p>
                 <p>JSON, encoding, date &amp; time, regex, SQL, XML, YAML, text tools and datasets — no account needed.</p>
               </div>
               <div>

@@ -34,10 +34,13 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
   return {
     title: { absolute: title },
     description,
-    alternates: { canonical: `/tools/category/${slug}` },
+    alternates: { canonical: siteUrl(`/tools/category/${slug}`) },
     openGraph: {
       title,
       description,
+      url: siteUrl(`/tools/category/${slug}`),
+      type: 'website',
+      siteName: 'DevToolsHub',
     },
   };
 }
