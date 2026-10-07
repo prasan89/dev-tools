@@ -41,7 +41,7 @@ export function DownloadButton({
       aria-label={`Download ${filename}`}
       title="Download file"
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-lg font-medium transition-colors text-sm',
+        'inline-flex items-center gap-1.5 rounded-lg font-medium transition-colors text-sm min-h-[2.25rem]',
         variant === 'outline' && 'px-3.5 py-1.5 border border-gray-200 bg-white text-gray-600 hover:bg-gray-50',
         variant === 'ghost' && 'px-1 py-1.5 text-gray-400 hover:text-gray-600',
         'disabled:opacity-40 disabled:cursor-not-allowed',

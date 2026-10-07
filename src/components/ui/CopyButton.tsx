@@ -37,7 +37,7 @@ export function CopyButton({ text, className, size = 'md', variant = 'outline', 
       aria-label={copied ? 'Copied to clipboard' : 'Copy to clipboard'}
       title={copied ? 'Copied!' : 'Copy to clipboard'}
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-lg font-medium transition-colors',
+        'inline-flex items-center gap-1.5 rounded-lg font-medium transition-colors min-h-[2.25rem]',
         size === 'sm' ? 'px-2 py-1 text-xs' : 'px-3.5 py-1.5 text-sm',
         variant === 'solid' && !copied && 'bg-gray-900 text-white hover:bg-gray-700',
         variant === 'solid' && copied && 'bg-green-600 text-white',

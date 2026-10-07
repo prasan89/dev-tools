@@ -1,0 +1,322 @@
+import { ToolProcessor, ToolInput, ToolResult } from '@/types/tool';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function toPascalCase(str: string): string {
+  return str
+    .replace(/[^a-zA-Z0-9]+(.)/g, (_, char) => char.toUpperCase())
+    .replace(/^(.)/, (c) => c.toUpperCase());
+}
+
+type CSharpType =
+  | 'string'
+  | 'int'
+  | 'long'
+  | 'double'
+  | 'bool'
+  | 'object'
+  | string; // List<T> or class name
+
+// ---------------------------------------------------------------------------
+// Type inference
+// ---------------------------------------------------------------------------
+
+interface ClassDef {
+  name: string;
+  properties: PropertyDef[];
+}
+
+interface PropertyDef {
+  jsonKey: string;
+  csName: string;
+  csType: CSharpType;
+}
+
+/**
+ * Infer the C# type for a JSON value. When a nested object or array is
+ * encountered, new class definitions are accumulated in `classes`.
+ */
+function inferType(
+  value: unknown,
+  hintName: string,
+  classes: ClassDef[],
+): CSharpType {
+  if (value === null || value === undefined) return 'object';
+  if (typeof value === 'boolean') return 'bool';
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return 'double';
+    if (Number.isInteger(value)) {
+      // Use long for values outside safe int32 range
+      if (value > 2147483647 || value < -2147483648) return 'long';
+      return 'int';
+    }
+    return 'double';
+  }
+  if (typeof value === 'string') return 'string';
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return 'List<object>';
+    // Use the first element to determine the list item type
+    const itemType = inferType(value[0], hintName, classes);
+    return `List<${itemType}>`;
+  }
+
+  if (typeof value === 'object') {
+    const className = toPascalCase(hintName);
+    // Avoid duplicate class definitions
+    if (!classes.find((c) => c.name === className)) {
+      const props = buildProperties(value as Record<string, unknown>, classes);
+      classes.push({ name: className, properties: props });
+    }
+    return className;
+  }
+
+  return 'object';
+}
+
+function buildProperties(
+  obj: Record<string, unknown>,
+  classes: ClassDef[],
+): PropertyDef[] {
+  return Object.entries(obj).map(([key, value]) => {
+    const csName = toPascalCase(key);
+    // Use "<PropName>Item" as the nested class hint for arrays/objects
+    const typeHint = csName.endsWith('s')
+      ? csName.slice(0, -1) // naive singularization
+      : csName + 'Item';
+    const csType = inferType(value, typeHint, classes);
+    return { jsonKey: key, csName, csType };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Code generation
+// ---------------------------------------------------------------------------
+
+function renderClass(
+  cls: ClassDef,
+  useRecords: boolean,
+  jsonAttributes: boolean,
+  indent: string,
+): string {
+  const lines: string[] = [];
+
+  if (useRecords) {
+    lines.push(`${indent}public record ${cls.name}(`);
+    const paramLines = cls.properties.map((prop, idx) => {
+      const attrs = jsonAttributes
+        ? `${indent}    [property: JsonPropertyName("${prop.jsonKey}")] `
+        : `${indent}    `;
+      const comma = idx < cls.properties.length - 1 ? ',' : '';
+      return `${attrs}${prop.csType} ${prop.csName}${comma}`;
+    });
+    lines.push(...paramLines);
+    lines.push(`${indent});`);
+  } else {
+    lines.push(`${indent}public class ${cls.name}`);
+    lines.push(`${indent}{`);
+    for (const prop of cls.properties) {
+      if (jsonAttributes) {
+        lines.push(`${indent}    [JsonPropertyName("${prop.jsonKey}")]`);
+      }
+      lines.push(`${indent}    public ${prop.csType} ${prop.csName} { get; set; }`);
+    }
+    lines.push(`${indent}}`);
+  }
+
+  return lines.join('\n');
+}
+
+function generateCSharp(
+  parsed: unknown,
+  useRecords: boolean,
+  namespace: string,
+  jsonAttributes: boolean,
+): string {
+  const classes: ClassDef[] = [];
+  const rootTypeName = 'Root';
+  let rootTypeLabel: string;
+  let isArray = false;
+
+  if (Array.isArray(parsed)) {
+    isArray = true;
+    if (parsed.length > 0 && typeof parsed[0] === 'object' && parsed[0] !== null) {
+      const props = buildProperties(parsed[0] as Record<string, unknown>, classes);
+      classes.push({ name: rootTypeName, properties: props });
+    }
+    rootTypeLabel = `List<${rootTypeName}>`;
+  } else if (typeof parsed === 'object' && parsed !== null) {
+    const props = buildProperties(parsed as Record<string, unknown>, classes);
+    classes.push({ name: rootTypeName, properties: props });
+    rootTypeLabel = rootTypeName;
+  } else {
+    return `// Cannot generate C# classes from a primitive JSON value.\n// Wrap it in an object first.`;
+  }
+
+  const parts: string[] = [];
+  parts.push(`// Generated by DevToolsHub — https://devtoolshub.dev`);
+  parts.push('');
+
+  // Using directives
+  const usings: string[] = ['using System.Collections.Generic;'];
+  if (jsonAttributes) {
+    usings.push('using System.Text.Json.Serialization;');
+  }
+  parts.push(...usings);
+  parts.push('');
+
+  // Namespace wrapper
+  const classIndent = namespace !== 'none' ? '    ' : '';
+  if (namespace !== 'none') {
+    parts.push(`namespace ${namespace}`);
+    parts.push('{');
+  }
+
+  // Emit classes in reverse order so nested types appear before the root
+  const ordered = [...classes].reverse();
+  const classBlocks = ordered.map((cls) =>
+    renderClass(cls, useRecords, jsonAttributes, classIndent),
+  );
+  parts.push(classBlocks.join('\n\n'));
+
+  if (namespace !== 'none') {
+    parts.push('}');
+  }
+
+  parts.push('');
+  parts.push(
+    `// Root type: ${rootTypeLabel} | ${isArray ? 'array' : 'object'} | ${classes.length} class${classes.length === 1 ? '' : 'es'} generated`,
+  );
+
+  return parts.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Option helpers
+// ---------------------------------------------------------------------------
+
+function getUseRecords(options?: Record<string, unknown>): boolean {
+  return options?.useRecords === true;
+}
+
+function getNamespace(options?: Record<string, unknown>): string {
+  const ns = options?.namespace;
+  if (ns === 'Models' || ns === 'Data') return ns;
+  return 'none';
+}
+
+function getJsonAttributes(options?: Record<string, unknown>): boolean {
+  return options?.jsonAttributes !== false;
+}
+
+// ---------------------------------------------------------------------------
+// Example input
+// ---------------------------------------------------------------------------
+
+const EXAMPLE_INPUT = JSON.stringify(
+  {
+    id: 42,
+    name: 'Jane Doe',
+    isActive: true,
+    score: 9.8,
+    address: {
+      street: '123 Main St',
+      city: 'Springfield',
+      zip: '62701',
+    },
+    tags: ['developer', 'typescript', 'dotnet'],
+  },
+  null,
+  2,
+);
+
+// ---------------------------------------------------------------------------
+// Processor
+// ---------------------------------------------------------------------------
+
+export const jsonToCsharpProcessor: ToolProcessor = {
+  inputLabel: 'JSON Input',
+  inputPlaceholder:
+    '{"id":1,"name":"Alice","active":true,"score":9.5,"address":{"city":"NY"},"tags":["a","b"]}',
+  autoProcess: false,
+  exampleInput: EXAMPLE_INPUT,
+
+  optionControls: [
+    {
+      key: 'namespace',
+      type: 'select',
+      label: 'Namespace',
+      defaultValue: 'none',
+      options: [
+        { value: 'none', label: 'None' },
+        { value: 'Models', label: 'Models' },
+        { value: 'Data', label: 'Data' },
+      ],
+    },
+    {
+      key: 'useRecords',
+      type: 'checkbox',
+      label: 'Use records (C# 9+)',
+      defaultValue: false,
+    },
+    {
+      key: 'jsonAttributes',
+      type: 'checkbox',
+      label: 'Add [JsonPropertyName] attributes',
+      defaultValue: true,
+    },
+  ],
+
+  process(input: ToolInput): ToolResult {
+    const raw = input.value.trim();
+    if (!raw) return { error: 'Paste a JSON object or array to generate C# classes.' };
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { error: `Invalid JSON: ${msg}` };
+    }
+
+    const useRecords = getUseRecords(input.options);
+    const namespace = getNamespace(input.options);
+    const jsonAttributes = getJsonAttributes(input.options);
+
+    const code = generateCSharp(parsed, useRecords, namespace, jsonAttributes);
+
+    // Compute meta
+    const isArray = Array.isArray(parsed);
+    const rootType = isArray ? 'array' : 'object';
+    const topLevelObj = isArray
+      ? Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'object' && parsed[0] !== null
+        ? (parsed[0] as Record<string, unknown>)
+        : null
+      : typeof parsed === 'object' && parsed !== null
+        ? (parsed as Record<string, unknown>)
+        : null;
+    const topLevelProperties = topLevelObj ? Object.keys(topLevelObj).length : 0;
+
+    // Count generated class definitions via rough heuristic
+    const classMatches = code.match(/\bpublic (?:class|record) \w+/g);
+    const nestedTypes = classMatches ? classMatches.length : 0;
+
+    return {
+      output: {
+        value: code,
+        type: 'text',
+        label: 'C# Classes',
+        copyable: true,
+        downloadFilename: 'Models.cs',
+        downloadMime: 'text/plain',
+      },
+      meta: {
+        'root type': rootType,
+        'top-level properties': topLevelProperties,
+        'classes generated': nestedTypes,
+      },
+    };
+  },
+};
