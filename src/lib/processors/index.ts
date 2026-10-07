@@ -27,6 +27,10 @@ const processorLoaders: Record<string, () => Promise<ToolProcessor>> = {
   'xml-formatter':            () => import('./xml-formatter').then(m => m.xmlFormatterProcessor),
   'yaml-formatter':           () => import('./yaml-formatter').then(m => m.yamlFormatterProcessor),
   'yaml-to-json':             () => import('./yaml-to-json').then(m => m.yamlToJsonProcessor),
+  'json-to-csv':              () => import('./json-to-csv').then(m => m.jsonToCsvProcessor),
+  'csv-to-json':              () => import('./csv-to-json').then(m => m.csvToJsonProcessor),
+  'json-to-yaml':             () => import('./json-to-yaml').then(m => m.jsonToYamlProcessor),
+  'json-to-xml':              () => import('./json-to-xml').then(m => m.jsonToXmlProcessor),
 };
 
 export async function getProcessor(toolId: string): Promise<ToolProcessor | undefined> {
