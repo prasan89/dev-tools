@@ -21,8 +21,13 @@ let pdfjsCache: PdfjsLib | null = null;
 async function loadPdfjs(): Promise<PdfjsLib> {
   if (pdfjsCache) return pdfjsCache;
   const pdfjs = await import('pdfjs-dist');
-  // Worker served from /public — same origin, no CSP issues, no eval needed
-  pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+  // Create the Worker manually and assign it as workerPort.
+  // This bypasses pdfjs's internal #isWorkerDisabled flag, which gets set to true
+  // when pdfjs detects a Node.js environment at module-evaluation time (Next.js SSR/build).
+  // workerPort path skips the disabled check entirely and uses the provided port directly.
+  if (!pdfjs.GlobalWorkerOptions.workerPort) {
+    pdfjs.GlobalWorkerOptions.workerPort = new Worker('/pdf.worker.min.mjs', { type: 'module' });
+  }
   pdfjsCache = pdfjs;
   return pdfjs;
 }
