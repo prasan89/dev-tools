@@ -81,6 +81,12 @@ const UPCOMING_TOOLS = [
     available: true,
   },
   {
+    title: 'Fill PDF Form',
+    description: 'Fill AcroForm PDF fields — text, checkboxes, radio buttons, and dropdowns.',
+    href: '/pdf-tools/fill-pdf',
+    available: true,
+  },
+  {
     title: 'PDF Watermark',
     description: 'Add text or image watermarks to PDF pages.',
     href: '/pdf-tools/watermark',
