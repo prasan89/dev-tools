@@ -1,13 +1,10 @@
-'use client';
-
 import Link from 'next/link';
-import { useState } from 'react';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { ThemeSwitcher } from './ThemeSwitcher';
+import { MobileNav } from './MobileNav';
 import { CATEGORIES, getEnabledTools } from '@/lib/registry';
 
 export function Header() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const toolCount = getEnabledTools().length;
 
   return (
@@ -20,7 +17,7 @@ export function Header() {
             className="flex shrink-0 items-center gap-2 text-gray-900 dark:text-gray-100 hover:opacity-80 transition-opacity"
             aria-label="DevToolsHub home"
           >
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white text-xs font-bold select-none">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white text-xs font-bold select-none" aria-hidden="true">
               DT
             </span>
             <span className="hidden font-bold text-sm sm:block">DevToolsHub</span>
@@ -34,28 +31,11 @@ export function Header() {
           {/* Right actions */}
           <div className="flex items-center gap-2 ml-auto">
             <ThemeSwitcher />
-            {/* Mobile menu button */}
-            <button
-              onClick={() => setMobileMenuOpen((v) => !v)}
-              aria-expanded={mobileMenuOpen}
-              aria-controls="mobile-menu"
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 sm:hidden"
-              aria-label="Toggle navigation menu"
-            >
-              {mobileMenuOpen ? (
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              ) : (
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              )}
-            </button>
+            <MobileNav />
           </div>
         </div>
 
-        {/* Category nav */}
+        {/* Category nav — desktop only */}
         <nav
           className="hidden sm:flex items-center gap-1 pb-2 overflow-x-auto scrollbar-none"
           aria-label="Tool categories"
@@ -77,34 +57,6 @@ export function Header() {
           ))}
         </nav>
       </div>
-
-      {/* Mobile menu */}
-      {mobileMenuOpen && (
-        <div
-          id="mobile-menu"
-          className="border-t border-gray-200 dark:border-gray-800 px-4 py-3 sm:hidden"
-        >
-          <nav className="flex flex-col gap-1" aria-label="Mobile tool categories">
-            <Link
-              href="/"
-              onClick={() => setMobileMenuOpen(false)}
-              className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-              All Tools
-            </Link>
-            {CATEGORIES.map((cat) => (
-              <Link
-                key={cat.id}
-                href={`/tools/category/${cat.slug}`}
-                onClick={() => setMobileMenuOpen(false)}
-                className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              >
-                {cat.name}
-              </Link>
-            ))}
-          </nav>
-        </div>
-      )}
     </header>
   );
 }

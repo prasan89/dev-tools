@@ -26,11 +26,12 @@ export function ToolOutput({
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
         {label && (
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</p>
         )}
         {showCopy && value && !error && <CopyButton text={value} size="sm" />}
       </div>
       <div
+        role={error ? 'alert' : undefined}
         className={cn(
           'relative w-full overflow-auto rounded-lg border px-3 py-2.5 text-sm',
           error

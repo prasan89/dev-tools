@@ -133,7 +133,12 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
 
   // No processor = coming-soon state
   if (processorLoading) {
-    return <ProcessorSkeleton />;
+    return (
+      <>
+        <p className="sr-only" aria-live="polite" aria-atomic="true">Loading tool, please wait.</p>
+        <ProcessorSkeleton />
+      </>
+    );
   }
 
   // No processor = coming-soon state
@@ -187,6 +192,7 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
           <ClearButton onClick={handleClear} disabled={!input && !secondaryInput} />
           {processor.exampleInput && (
             <button
+              type="button"
               onClick={handleLoadExample}
               className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
@@ -212,6 +218,8 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
           {/* Manual run button for processors that don't auto-process */}
           {processor.autoProcess === false && (
             <button
+              type="button"
+              aria-label="Run tool"
               onClick={() => runProcessor(input, secondaryInput, options)}
               disabled={!input || (processor.hasSecondaryInput && !secondaryInput)}
               className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"

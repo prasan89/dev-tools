@@ -35,12 +35,15 @@ export function DownloadButton({
     <button
       onClick={handleDownload}
       disabled={disabled || !content}
+      type="button"
+      aria-label={`Download ${filename}`}
       title="Download file"
       className={cn(
         'inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium',
         'border border-gray-200 dark:border-gray-700',
         'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700',
         'text-gray-600 dark:text-gray-300',
+        'min-h-[2.25rem]',
         'transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
         className
       )}

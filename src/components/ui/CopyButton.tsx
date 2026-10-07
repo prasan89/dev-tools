@@ -37,12 +37,14 @@ export function CopyButton({ text, className, size = 'md', onCopy }: CopyButtonP
   return (
     <button
       onClick={handleCopy}
+      aria-label={copied ? 'Copied to clipboard' : 'Copy to clipboard'}
       title={copied ? 'Copied!' : 'Copy to clipboard'}
       className={cn(
         'inline-flex items-center gap-1.5 rounded font-mono font-medium transition-colors',
         'border border-gray-200 dark:border-gray-700',
         'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700',
         'text-gray-600 dark:text-gray-300',
+        'min-h-[2.25rem]',
         size === 'sm' ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm',
         copied && 'border-green-400 dark:border-green-600 text-green-600 dark:text-green-400',
         className

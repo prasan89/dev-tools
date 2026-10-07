@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useId } from 'react';
 import { cn } from '@/lib/utils';
 
 interface ToolInputProps {
@@ -25,6 +25,7 @@ export function ToolInput({
   mono = true,
 }: ToolInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const id = useId();
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -36,15 +37,19 @@ export function ToolInput({
   return (
     <div className="flex flex-col gap-1.5">
       {label && (
-        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
+        <label htmlFor={id} className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          {label}
+        </label>
       )}
       <textarea
         ref={textareaRef}
+        id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
         rows={rows}
+        aria-label={label ?? placeholder}
         className={cn(
           'w-full resize-y rounded-lg border px-3 py-2.5 text-sm',
           'border-gray-200 dark:border-gray-700',

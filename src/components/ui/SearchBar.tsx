@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useId } from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { searchTools } from '@/lib/registry';
@@ -20,8 +20,13 @@ export function SearchBar({
 }: SearchBarProps) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   const router = useRouter();
+  const inputId = useId();
+  const listId = useId();
 
   const results = useMemo<Tool[]>(() => {
     if (query.length < 2) return [];
@@ -29,6 +34,9 @@ export function SearchBar({
   }, [query]);
 
   const showDropdown = open && results.length > 0;
+
+  // Reset active index when results change
+  useEffect(() => { setActiveIndex(-1); }, [results]);
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
@@ -41,24 +49,46 @@ export function SearchBar({
   }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && results.length > 0) {
-      router.push(`/tools/${results[0].slug}`);
-      setOpen(false);
-      setQuery('');
+    if (!showDropdown) {
+      if (e.key === 'Escape') { setOpen(false); setQuery(''); }
+      return;
     }
-    if (e.key === 'Escape') {
-      setOpen(false);
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setActiveIndex((i) => Math.min(i + 1, results.length - 1));
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setActiveIndex((i) => Math.max(i - 1, -1));
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (activeIndex >= 0 && results[activeIndex]) {
+          router.push(`/tools/${results[activeIndex].slug}`);
+        } else if (results.length > 0) {
+          router.push(`/tools/${results[0].slug}`);
+        }
+        setOpen(false);
+        setQuery('');
+        break;
+      case 'Escape':
+        setOpen(false);
+        setActiveIndex(-1);
+        inputRef.current?.blur();
+        break;
+      case 'Tab':
+        setOpen(false);
+        break;
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setQuery(e.target.value);
-    setOpen(true);
-  };
+  const activeOptionId = activeIndex >= 0 ? `${listId}-option-${activeIndex}` : undefined;
 
   return (
     <div ref={containerRef} className={cn('relative', className)}>
-      <div className="relative">
+      <label htmlFor={inputId} className="sr-only">Search developer tools</label>
+      <div className="relative" role="combobox" aria-expanded={showDropdown} aria-haspopup="listbox" aria-owns={listId}>
         <svg
           className={cn(
             'pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400',
@@ -67,21 +97,24 @@ export function SearchBar({
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
+          aria-hidden="true"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-          />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
         <input
+          ref={inputRef}
+          id={inputId}
           type="search"
           value={query}
-          onChange={handleChange}
+          onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
           onKeyDown={handleKeyDown}
           onFocus={() => setOpen(true)}
           placeholder={placeholder}
+          autoComplete="off"
+          role="searchbox"
+          aria-autocomplete="list"
+          aria-controls={listId}
+          aria-activedescendant={activeOptionId}
           className={cn(
             'w-full rounded-xl border bg-white dark:bg-gray-900',
             'border-gray-200 dark:border-gray-700',
@@ -89,22 +122,41 @@ export function SearchBar({
             'placeholder:text-gray-400 dark:placeholder:text-gray-600',
             'focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400',
             'transition-shadow',
-            size === 'large'
-              ? 'pl-12 pr-4 py-3.5 text-base'
-              : 'pl-10 pr-4 py-2 text-sm'
+            size === 'large' ? 'pl-12 pr-4 py-3.5 text-base' : 'pl-10 pr-4 py-2 text-sm'
           )}
         />
       </div>
-      {showDropdown && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg">
-          {results.map((tool) => (
+
+      {/* Results dropdown */}
+      <ul
+        ref={listRef}
+        id={listId}
+        role="listbox"
+        aria-label="Search results"
+        className={cn(
+          'absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg',
+          !showDropdown && 'hidden'
+        )}
+      >
+        {results.map((tool, i) => (
+          <li
+            key={tool.slug}
+            id={`${listId}-option-${i}`}
+            role="option"
+            aria-selected={i === activeIndex}
+          >
             <Link
-              key={tool.slug}
               href={`/tools/${tool.slug}`}
               onClick={() => { setOpen(false); setQuery(''); }}
-              className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              className={cn(
+                'flex items-center gap-3 px-4 py-2.5 transition-colors',
+                i === activeIndex
+                  ? 'bg-blue-50 dark:bg-blue-950/30'
+                  : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+              )}
+              tabIndex={-1}
             >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-xs font-bold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-xs font-bold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300" aria-hidden="true">
                 {tool.icon}
               </span>
               <div>
@@ -112,8 +164,17 @@ export function SearchBar({
                 <p className="text-xs text-gray-500 dark:text-gray-400">{tool.description}</p>
               </div>
             </Link>
-          ))}
-        </div>
+          </li>
+        ))}
+      </ul>
+
+      {/* Screen reader live announcement */}
+      {query.length >= 2 && (
+        <p className="sr-only" aria-live="polite" aria-atomic="true">
+          {results.length > 0
+            ? `${results.length} result${results.length > 1 ? 's' : ''} found`
+            : 'No results found'}
+        </p>
       )}
     </div>
   );
