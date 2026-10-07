@@ -38,6 +38,18 @@ interface PageInfo {
   rotation: number;
 }
 
+interface PdfTextItem {
+  id: string;
+  text: string;
+  /** PDF coordinate space (bottom-left origin) */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Approximate font size in PDF points */
+  fontSize: number;
+}
+
 // ─── Page rendering ────────────────────────────────────────────────────────────
 
 const PREVIEW_MAX_W = 760;
@@ -72,6 +84,43 @@ async function renderPageToCanvas(
   page.cleanup();
   doc.cleanup();
   return { widthPt, heightPt, rotation, scale };
+}
+
+// ─── Extract text items from pdfjs ────────────────────────────────────────────
+
+async function extractPageTextItems(
+  pdfData: ArrayBuffer,
+  pageNumber: number,
+): Promise<PdfTextItem[]> {
+  const pdfjs = await import('pdfjs-dist');
+  if (!pdfjs.GlobalWorkerOptions.workerPort) {
+    pdfjs.GlobalWorkerOptions.workerPort = new Worker('/pdf.worker.min.mjs', { type: 'module' });
+  }
+  const task = pdfjs.getDocument({ data: pdfData.slice(0), disableAutoFetch: true, wasmUrl: '/wasm/' });
+  const doc = await task.promise;
+  const page = await doc.getPage(pageNumber);
+  const heightPt = page.getViewport({ scale: 1, rotation: 0 }).height;
+  const content = await page.getTextContent();
+  page.cleanup();
+  doc.cleanup();
+
+  const items: PdfTextItem[] = [];
+  let idx = 0;
+  for (const item of content.items) {
+    if (!('str' in item) || !item.str.trim()) continue;
+    // pdfjs transform: [scaleX, skewX, skewY, scaleY, translateX, translateY]
+    const t = item.transform as number[];
+    const scaleX = Math.abs(t[0]);
+    const scaleY = Math.abs(t[3]);
+    const fontSize = Math.max(scaleX, scaleY);
+    const x = t[4];
+    // pdfjs returns Y from bottom; item.height is the glyph height
+    const itemH = (item as { height?: number }).height ?? fontSize;
+    const y = t[5] - itemH; // bottom of bounding box in PDF coords
+    const w = (item as { width?: number }).width ?? scaleX * item.str.length;
+    items.push({ id: `pdftext-${idx++}`, text: item.str, x, y, width: w, height: itemH, fontSize });
+  }
+  return items;
 }
 
 // ─── Image decode ─────────────────────────────────────────────────────────────
@@ -374,6 +423,8 @@ export default function EditPdfPage() {
   const [toolMode, setToolMode] = useState<ToolMode>('select');
   const [textEditId, setTextEditId] = useState<string | null>(null);
   const [drawState, setDrawState] = useState<DrawState | null>(null);
+  const [pdfTextItems, setPdfTextItems] = useState<PdfTextItem[]>([]);
+  const [hoveredTextId, setHoveredTextId] = useState<string | null>(null);
 
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [saveResult, setSaveResult] = useState<EditOutcome | null>(null);
@@ -436,6 +487,58 @@ export default function EditPdfPage() {
     setSelectedId(null);
   }, [pushHistory]);
 
+  // ─── Edit existing PDF text ───────────────────────────────────────────────────
+
+  const handleEditPdfText = useCallback((item: PdfTextItem) => {
+    // Cover the original text with a white rectangle, then add an editable text object
+    const coverId = crypto.randomUUID();
+    const textId = crypto.randomUUID();
+    const pageIdx = currentPage - 1;
+    const padding = 1; // small padding to fully cover the glyph
+    const cover: Omit<WhiteoutObject, 'zIndex'> = {
+      id: coverId,
+      type: 'whiteout',
+      pageIndex: pageIdx,
+      x: item.x - padding,
+      y: item.y - padding,
+      width: item.width + padding * 2,
+      height: item.height + padding * 2,
+      fillColor: '#ffffff',
+      fillOpacity: 1,
+      borderColor: '#ffffff',
+      borderWidth: 0,
+      opacity: 1,
+    };
+    const textObj: Omit<TextObject, 'zIndex'> = {
+      id: textId,
+      type: 'text',
+      pageIndex: pageIdx,
+      x: item.x - padding,
+      y: item.y - padding,
+      width: item.width + padding * 2,
+      height: item.height + padding * 2,
+      text: item.text,
+      fontFamily: 'Helvetica',
+      fontSize: item.fontSize,
+      bold: false,
+      italic: false,
+      underline: false,
+      color: '#000000',
+      opacity: 1,
+      align: 'left',
+    };
+    setEditorState((prev) => {
+      pushHistory(prev);
+      let s = addObject(prev, cover);
+      s = addObject(s, textObj);
+      return s;
+    });
+    setTimeout(() => {
+      setSelectedId(textId);
+      setTextEditId(textId);
+    }, 0);
+  }, [currentPage, pushHistory]);
+
   // ─── File selected ────────────────────────────────────────────────────────────
 
   const handleFileSelected = useCallback((files: PdfFile[]) => {
@@ -497,6 +600,20 @@ export default function EditPdfPage() {
     }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pdfUrl]);
+
+  // ─── Extract PDF text items for current page ──────────────────────────────────
+
+  useEffect(() => {
+    if (!pdfUrl || !pdfBytesRef.current) return;
+    setPdfTextItems([]);
+    const data = pdfBytesRef.current;
+    let cancelled = false;
+    extractPageTextItems(data, currentPage).then((items) => {
+      if (!cancelled) setPdfTextItems(items);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pdfUrl, currentPage]);
 
   // ─── Canvas pointer — shape/annotation drawing ────────────────────────────────
 
@@ -947,6 +1064,11 @@ export default function EditPdfPage() {
       )}
 
       {/* Mode hint */}
+      {toolMode === 'select' && pdfTextItems.length > 0 && (
+        <p className="text-xs text-gray-500 dark:text-gray-400 px-1" role="status">
+          Hover over existing text to highlight it, then click to edit it.
+        </p>
+      )}
       {toolMode !== 'select' && (
         <p className="text-xs text-blue-600 dark:text-blue-400 px-1" role="status">
           {toolMode === 'text' ? 'Click to place a text box.' : toolMode === 'pen' ? 'Draw on the page. Release to finish.' : `Draw on the page to add ${toolMode}.`}
@@ -1146,6 +1268,33 @@ export default function EditPdfPage() {
             canvasHeight={canvasSize.height}
           />
         )}
+
+        {/* PDF text item click targets — shown in Select mode to allow editing existing text */}
+        {toolMode === 'select' && pdfTextItems.map((item) => {
+          const r = pdfRectToScreen(item.x, item.y, item.width, item.height, pageScale, pageDims.heightPt);
+          const isHovered = hoveredTextId === item.id;
+          return (
+            <div
+              key={item.id}
+              title={`Click to edit: "${item.text.slice(0, 40)}${item.text.length > 40 ? '…' : ''}"`}
+              style={{
+                position: 'absolute',
+                left: r.left - 2,
+                top: r.top - 2,
+                width: r.width + 4,
+                height: r.height + 4,
+                cursor: 'text',
+                background: isHovered ? 'rgba(59,130,246,0.15)' : 'transparent',
+                border: isHovered ? '1px solid rgba(59,130,246,0.5)' : '1px solid transparent',
+                borderRadius: 2,
+                zIndex: 5,
+              }}
+              onMouseEnter={() => setHoveredTextId(item.id)}
+              onMouseLeave={() => setHoveredTextId(null)}
+              onClick={() => { setHoveredTextId(null); handleEditPdfText(item); }}
+            />
+          );
+        })}
       </div>
 
       {/* Object count summary */}
