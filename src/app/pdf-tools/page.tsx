@@ -51,6 +51,12 @@ const UPCOMING_TOOLS = [
     available: true,
   },
   {
+    title: 'JPG / PNG to PDF',
+    description: 'Convert JPG and PNG images to PDF. Combine multiple images into one document.',
+    href: '/pdf-tools/jpg-png-to-pdf',
+    available: true,
+  },
+  {
     title: 'PDF Watermark',
     description: 'Add text or image watermarks to PDF pages.',
     href: '/pdf-tools/watermark',
