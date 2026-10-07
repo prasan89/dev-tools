@@ -31,6 +31,13 @@ const processorLoaders: Record<string, () => Promise<ToolProcessor>> = {
   'csv-to-json':              () => import('./csv-to-json').then(m => m.csvToJsonProcessor),
   'json-to-yaml':             () => import('./json-to-yaml').then(m => m.jsonToYamlProcessor),
   'json-to-xml':              () => import('./json-to-xml').then(m => m.jsonToXmlProcessor),
+  'hash-generator':           () => import('./hash-generator').then(m => m.hashGeneratorProcessor),
+  'html-formatter':           () => import('./html-formatter').then(m => m.htmlFormatterProcessor),
+  'css-formatter':            () => import('./css-formatter').then(m => m.cssFormatterProcessor),
+  'diff-checker':             () => import('./diff-checker').then(m => m.diffCheckerProcessor),
+  'markdown-preview':         () => import('./markdown-preview').then(m => m.markdownPreviewProcessor),
+  'word-counter':             () => import('./word-counter').then(m => m.wordCounterProcessor),
+  'color-picker':             () => import('./color-picker').then(m => m.colorPickerProcessor),
 };
 
 export async function getProcessor(toolId: string): Promise<ToolProcessor | undefined> {
