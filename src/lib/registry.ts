@@ -101,6 +101,14 @@ export const CATEGORIES: Category[] = [
     icon: '⊞',
     color: 'teal',
   },
+  {
+    id: 'text',
+    slug: 'text',
+    name: 'Text Tools',
+    description: 'Case converters, line sorters, duplicate removers, and text utilities',
+    icon: 'Aa',
+    color: 'indigo',
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -846,6 +854,187 @@ export const TOOLS: ToolDefinition[] = [
     seoTitle: 'CSV Validator — Validate and Check CSV Files Online',
     seoDescription:
       'Validate CSV files for errors: mismatched columns, broken quotes, malformed rows. Row-level error reporting. Free, browser-based.',
+  },
+
+  // XML Utilities
+  {
+    id: 'xml-validator',
+    name: 'XML Validator',
+    slug: 'xml-validator',
+    category: 'xml',
+    description: 'Validate XML for syntax errors — malformed tags, mismatched elements',
+    longDescription:
+      'Validates XML using the browser DOMParser. Detects malformed tags, mismatched closing tags, invalid nesting, and declaration errors. Reports the error with context from the browser XML parser.',
+    icon: 'XML✓',
+    keywords: ['xml', 'validate', 'validator', 'lint', 'check', 'xml error', 'xml syntax', 'xml checker', 'well-formed'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['xml-formatter', 'xml-minifier', 'xml-to-json', 'xml-escape'],
+    popular: true,
+    isNew: true,
+    order: 2,
+    seoTitle: 'XML Validator — Validate XML Syntax Online',
+    seoDescription:
+      'Validate XML syntax and detect errors. Checks for malformed tags, mismatched elements, and invalid nesting. Free, browser-based.',
+  },
+  {
+    id: 'xml-minifier',
+    name: 'XML Minifier',
+    slug: 'xml-minifier',
+    category: 'xml',
+    description: 'Remove whitespace from XML while preserving document meaning',
+    longDescription:
+      'Minifies XML by removing unnecessary whitespace between elements while preserving meaningful text content, CDATA sections, and document structure. Configurable comment preservation.',
+    icon: 'XML↓',
+    keywords: ['xml', 'minify', 'minifier', 'compress', 'whitespace', 'optimize', 'xml compress'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['xml-formatter', 'xml-validator', 'xml-to-json'],
+    isNew: true,
+    order: 3,
+    seoTitle: 'XML Minifier — Minify XML Online',
+    seoDescription:
+      'Minify XML by removing unnecessary whitespace. Preserves meaningful text nodes, CDATA, and document structure. Free online XML minifier.',
+  },
+  {
+    id: 'xml-to-json',
+    name: 'XML → JSON',
+    slug: 'xml-to-json',
+    category: 'xml',
+    description: 'Convert XML documents to JSON — elements, attributes, text nodes',
+    longDescription:
+      'Converts XML to JSON using a structured mapping: elements become objects, attributes are prefixed with @, text content uses a #text key, repeated sibling elements become arrays. Handles namespaces, CDATA, and nested structures.',
+    icon: 'XML→{}',
+    keywords: ['xml to json', 'convert', 'xml json', 'xml2json', 'transform', 'parse xml', 'xml converter'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['json-to-xml', 'xml-formatter', 'xml-validator', 'json-formatter'],
+    popular: true,
+    isNew: true,
+    order: 4,
+    seoTitle: 'XML to JSON Converter — Convert XML to JSON Online',
+    seoDescription:
+      'Convert XML documents to JSON. Handles elements, attributes, nested structures, and repeated elements. Free, browser-based XML to JSON converter.',
+  },
+  {
+    id: 'xml-escape',
+    name: 'XML Escape / Unescape',
+    slug: 'xml-escape',
+    category: 'xml',
+    description: 'Escape or unescape XML special characters — &amp; &lt; &gt; &quot;',
+    longDescription:
+      'Escape plain text for safe embedding in XML content or attributes, or unescape XML entity references back to raw characters. Handles the 5 predefined XML entities: &amp; &lt; &gt; &quot; &apos;.',
+    icon: '&amp;',
+    keywords: ['xml escape', 'unescape', 'entities', 'ampersand', 'html entities', 'xml encoding', 'escape xml', 'special characters'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['xml-formatter', 'html-encoder', 'html-decoder', 'json-escape'],
+    isNew: true,
+    order: 5,
+    seoTitle: 'XML Escape / Unescape — Escape XML Special Characters',
+    seoDescription:
+      'Escape or unescape XML special characters. Handles &amp; &lt; &gt; &quot; &apos; entities. Free online XML escaper.',
+  },
+
+  // YAML Utilities
+  {
+    id: 'yaml-validator',
+    name: 'YAML Validator',
+    slug: 'yaml-validator',
+    category: 'yaml',
+    description: 'Validate YAML syntax and detect parse errors',
+    longDescription:
+      'Validates YAML syntax using js-yaml. Reports syntax errors with line and column context. Supports YAML 1.2 including nested mappings, sequences, anchors, aliases, and multiline scalars.',
+    icon: 'YAML✓',
+    keywords: ['yaml', 'validate', 'validator', 'lint', 'check', 'yaml syntax', 'yaml error', 'yaml checker'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['yaml-formatter', 'yaml-to-json', 'yaml-minifier', 'json-validator'],
+    popular: true,
+    isNew: true,
+    order: 3,
+    seoTitle: 'YAML Validator — Validate YAML Syntax Online',
+    seoDescription:
+      'Validate YAML syntax and detect errors. Supports YAML 1.2, nested structures, anchors, and aliases. Free, browser-based.',
+  },
+  {
+    id: 'yaml-minifier',
+    name: 'YAML Minifier',
+    slug: 'yaml-minifier',
+    category: 'yaml',
+    description: 'Minify YAML — produce compact single-line representation',
+    longDescription:
+      'Parses YAML and serializes it in the most compact valid YAML format using flow style. Preserves all data types including strings, numbers, booleans, null, arrays, and nested mappings.',
+    icon: 'YAML↓',
+    keywords: ['yaml', 'minify', 'minifier', 'compact', 'flow', 'yaml compress', 'yaml optimize'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['yaml-formatter', 'yaml-validator', 'yaml-to-json'],
+    isNew: true,
+    order: 4,
+    seoTitle: 'YAML Minifier — Minify YAML Online',
+    seoDescription:
+      'Minify YAML to compact flow style. Preserves all data types and structure. Free online YAML minifier.',
+  },
+
+  // Text Tools
+  {
+    id: 'text-case-converter',
+    name: 'Text Case Converter',
+    slug: 'text-case-converter',
+    category: 'text',
+    description: 'Convert text case — camelCase, snake_case, kebab-case, UPPER, Title, and more',
+    longDescription:
+      'Convert between 9 text case formats: lowercase, UPPERCASE, Title Case, Sentence case, camelCase, PascalCase, snake_case, kebab-case, and CONSTANT_CASE. Handles Unicode, multiple spaces, and punctuation.',
+    icon: 'Aa',
+    keywords: ['case converter', 'camelcase', 'snake case', 'kebab case', 'pascal case', 'title case', 'uppercase', 'lowercase', 'text converter'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['word-counter', 'remove-duplicate-lines', 'sort-lines'],
+    popular: true,
+    isNew: true,
+    order: 1,
+    seoTitle: 'Text Case Converter — camelCase, snake_case, kebab-case & More',
+    seoDescription:
+      'Convert text between camelCase, PascalCase, snake_case, kebab-case, UPPER, lower, Title, Sentence, and CONSTANT_CASE. Free online case converter.',
+  },
+  {
+    id: 'remove-duplicate-lines',
+    name: 'Remove Duplicate Lines',
+    slug: 'remove-duplicate-lines',
+    category: 'text',
+    description: 'Remove duplicate lines from text, keeping only the first occurrence',
+    longDescription:
+      'Removes duplicate lines from any text input. Keeps the first occurrence, optionally case-insensitive. Preserves original line order. Reports how many duplicates were removed.',
+    icon: '≡×',
+    keywords: ['duplicate lines', 'remove duplicates', 'unique lines', 'deduplicate', 'text cleaner', 'line deduplication'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['sort-lines', 'text-case-converter', 'word-counter'],
+    isNew: true,
+    order: 2,
+    seoTitle: 'Remove Duplicate Lines — Deduplicate Text Online',
+    seoDescription:
+      'Remove duplicate lines from text, keeping first occurrences. Optional case-insensitive mode. Free online duplicate line remover.',
+  },
+  {
+    id: 'sort-lines',
+    name: 'Sort Lines',
+    slug: 'sort-lines',
+    category: 'text',
+    description: 'Sort lines alphabetically or numerically, ascending or descending',
+    longDescription:
+      'Sort lines of text alphabetically or numerically, ascending or descending. Optional case-insensitive mode and unique-only filter. Preserves blank lines or removes them as configured.',
+    icon: 'A↕Z',
+    keywords: ['sort lines', 'alphabetical sort', 'numeric sort', 'line sort', 'text sort', 'arrange lines'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['remove-duplicate-lines', 'text-case-converter', 'word-counter'],
+    isNew: true,
+    order: 3,
+    seoTitle: 'Sort Lines — Sort Text Lines Online',
+    seoDescription:
+      'Sort text lines alphabetically or numerically, ascending or descending. Case-insensitive and unique-only options. Free online line sorter.',
   },
 ];
 

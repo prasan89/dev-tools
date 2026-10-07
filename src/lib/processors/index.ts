@@ -44,6 +44,15 @@ const processorLoaders: Record<string, () => Promise<ToolProcessor>> = {
   'json-sorter':              () => import('./json-sorter').then(m => m.jsonSorterProcessor),
   'csv-formatter':            () => import('./csv-formatter').then(m => m.csvFormatterProcessor),
   'csv-validator':            () => import('./csv-validator').then(m => m.csvValidatorProcessor),
+  'xml-validator':            () => import('./xml-validator').then(m => m.xmlValidatorProcessor),
+  'xml-minifier':             () => import('./xml-minifier').then(m => m.xmlMinifierProcessor),
+  'xml-to-json':              () => import('./xml-to-json').then(m => m.xmlToJsonProcessor),
+  'xml-escape':               () => import('./xml-escape').then(m => m.xmlEscapeProcessor),
+  'yaml-validator':           () => import('./yaml-validator').then(m => m.yamlValidatorProcessor),
+  'yaml-minifier':            () => import('./yaml-minifier').then(m => m.yamlMinifierProcessor),
+  'text-case-converter':      () => import('./text-case-converter').then(m => m.textCaseConverterProcessor),
+  'remove-duplicate-lines':   () => import('./remove-duplicate-lines').then(m => m.removeDuplicateLinesProcessor),
+  'sort-lines':               () => import('./sort-lines').then(m => m.sortLinesProcessor),
 };
 
 export async function getProcessor(toolId: string): Promise<ToolProcessor | undefined> {
