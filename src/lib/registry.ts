@@ -61,6 +61,38 @@ export const CATEGORIES: Category[] = [
     icon: '⏱',
     color: 'orange',
   },
+  {
+    id: 'regex',
+    slug: 'regex',
+    name: 'Regex',
+    description: 'Test and debug regular expressions in real-time',
+    icon: '.*',
+    color: 'purple',
+  },
+  {
+    id: 'sql',
+    slug: 'sql',
+    name: 'SQL',
+    description: 'Format, beautify, and inspect SQL queries',
+    icon: '⊞',
+    color: 'blue',
+  },
+  {
+    id: 'xml',
+    slug: 'xml',
+    name: 'XML',
+    description: 'Format, validate, and transform XML documents',
+    icon: '</>',
+    color: 'green',
+  },
+  {
+    id: 'yaml',
+    slug: 'yaml',
+    name: 'YAML',
+    description: 'Format, validate, and convert YAML documents',
+    icon: '---',
+    color: 'orange',
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -444,24 +476,115 @@ export const TOOLS: ToolDefinition[] = [
       'Convert numeric timestamps (seconds or milliseconds) to human-readable dates. Handles past, future, and negative timestamps. Free and browser-based.',
   },
 
-  // Data & Code
+  // Regex
   {
     id: 'regex-tester',
     name: 'Regex Tester',
     slug: 'regex-tester',
-    category: 'data-code',
-    description: 'Test and debug regular expressions in real-time',
+    category: 'regex',
+    description: 'Test and debug regular expressions with match highlighting and capture groups',
+    longDescription:
+      'Test JavaScript regular expressions interactively. Enter a pattern, choose flags (g, i, m, s, u, y), and see all matches, capture groups, named groups, and match positions — all browser-side, nothing sent to a server.',
     icon: '.*',
-    keywords: ['regex', 'regexp', 'regular expression', 'pattern', 'match', 'test', 'debug'],
+    keywords: ['regex', 'regexp', 'regular expression', 'pattern', 'match', 'test', 'debug', 'regex tester', 'online regex', 'regular expression tester', 'regex checker'],
     enabled: true,
-    privacySensitive: false,
-    relatedTools: ['csv-to-json'],
+    privacySensitive: true,
+    relatedTools: ['json-formatter', 'url-encoder', 'html-encoder'],
     popular: true,
+    isNew: true,
     order: 1,
-    seoTitle: 'Regex Tester',
+    seoTitle: 'Regex Tester — Test Regular Expressions Online',
     seoDescription:
-      'Test regular expressions with real-time matching and highlighting. Free online regex tester.',
+      'Test and debug regular expressions in your browser. See all matches, capture groups, and named groups with position info. Flags: g, i, m, s, u, y. Free and 100% browser-based.',
   },
+
+  // SQL
+  {
+    id: 'sql-formatter',
+    name: 'SQL Formatter',
+    slug: 'sql-formatter',
+    category: 'sql',
+    description: 'Format and beautify SQL queries for readability',
+    longDescription:
+      'Paste any SQL query and get it formatted with consistent indentation and keyword casing. Supports SELECT, INSERT, UPDATE, DELETE, JOINs, subqueries, CASE, and more. Supports MySQL, PostgreSQL, SQL Server, SQLite, and generic SQL. Never executes queries — formatting is text-only, browser-side.',
+    icon: '⊞',
+    keywords: ['sql', 'format', 'beautify', 'sql formatter', 'sql pretty printer', 'format sql', 'sql beautifier', 'mysql', 'postgresql'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['json-formatter', 'xml-formatter', 'yaml-formatter'],
+    popular: true,
+    isNew: true,
+    order: 1,
+    seoTitle: 'SQL Formatter — Beautify SQL Queries Online',
+    seoDescription:
+      'Format and beautify SQL queries online. Supports MySQL, PostgreSQL, SQL Server, SQLite. No query execution — browser-only text formatting. Free.',
+  },
+
+  // XML
+  {
+    id: 'xml-formatter',
+    name: 'XML Formatter',
+    slug: 'xml-formatter',
+    category: 'xml',
+    description: 'Format, pretty-print, and validate XML documents',
+    longDescription:
+      'Paste XML and get it beautifully formatted with proper indentation. Validates structure and reports parsing errors with line numbers. Preserves declarations, comments, CDATA, namespaces, and self-closing tags. Processes entirely in your browser.',
+    icon: '</>',
+    keywords: ['xml', 'format', 'beautify', 'pretty print', 'xml formatter', 'xml beautifier', 'format xml', 'xml validator', 'pretty print xml'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['json-formatter', 'yaml-formatter', 'sql-formatter'],
+    popular: true,
+    isNew: true,
+    order: 1,
+    seoTitle: 'XML Formatter — Pretty Print and Validate XML Online',
+    seoDescription:
+      'Format and validate XML documents online. Detects errors with line info, preserves comments and CDATA. Free and browser-based.',
+  },
+
+  // YAML
+  {
+    id: 'yaml-formatter',
+    name: 'YAML Formatter',
+    slug: 'yaml-formatter',
+    category: 'yaml',
+    description: 'Format and beautify YAML documents',
+    longDescription:
+      'Paste YAML and get it reformatted with consistent indentation. Validates syntax, reports errors with line/column info, and handles mappings, sequences, booleans, nulls, numbers, and multiline strings. Parsed locally — your data never leaves the browser.',
+    icon: '---',
+    keywords: ['yaml', 'format', 'beautify', 'yaml formatter', 'yaml beautifier', 'format yaml', 'yaml pretty printer', 'yaml validator', 'yaml linter'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['yaml-to-json', 'json-formatter', 'xml-formatter'],
+    popular: true,
+    isNew: true,
+    order: 1,
+    seoTitle: 'YAML Formatter — Beautify and Validate YAML Online',
+    seoDescription:
+      'Format and validate YAML documents online. Reports errors with line/column info. Handles all standard YAML types. Free and browser-based.',
+  },
+  {
+    id: 'yaml-to-json',
+    name: 'YAML to JSON',
+    slug: 'yaml-to-json',
+    category: 'yaml',
+    description: 'Convert YAML to JSON — safely parsed, browser-only',
+    longDescription:
+      'Convert YAML documents to formatted JSON. Handles nested mappings, sequences, booleans, numbers, null, Unicode, and multiline strings. Uses safe YAML parsing — no arbitrary code execution. Processing is 100% browser-side.',
+    icon: '⇒',
+    keywords: ['yaml', 'json', 'convert', 'yaml to json', 'yaml converter', 'convert yaml to json', 'yaml json converter', 'yaml parser'],
+    enabled: true,
+    privacySensitive: true,
+    relatedTools: ['yaml-formatter', 'json-formatter', 'xml-formatter'],
+    popular: true,
+    isNew: true,
+    order: 2,
+    seoTitle: 'YAML to JSON Converter — Convert YAML Online',
+    seoDescription:
+      'Convert YAML to JSON online. Safely parses YAML using js-yaml — no code execution. Handles nested structures, types, and Unicode. Free and browser-based.',
+  },
+
+  // Data & Code
   {
     id: 'csv-to-json',
     name: 'CSV to JSON',

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { ToolDefinition, ToolInput as ToolInputType, ToolResult } from '@/types/tool';
+import { ToolDefinition, ToolInput as ToolInputType, ToolResult, ToolOptionControl } from '@/types/tool';
 import { getProcessor } from '@/lib/processors/index';
 import { ToolInput } from '@/components/ui/ToolInput';
 import { ToolOutput } from '@/components/ui/ToolOutput';
@@ -15,6 +15,16 @@ interface ToolWorkspaceProps {
   tool: ToolDefinition;
 }
 
+// Build initial options object from optionControls defaults
+function buildDefaultOptions(controls: ToolOptionControl[] | undefined): Record<string, unknown> {
+  if (!controls) return {};
+  const opts: Record<string, unknown> = {};
+  for (const c of controls) {
+    opts[c.key] = c.defaultValue;
+  }
+  return opts;
+}
+
 export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
   const [input, setInput] = useState('');
   const [secondaryInput, setSecondaryInput] = useState('');
@@ -23,10 +33,14 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
 
   const processor = getProcessor(tool.id);
 
+  const [options, setOptions] = useState<Record<string, unknown>>(
+    () => buildDefaultOptions(processor?.optionControls)
+  );
+
   const runProcessor = useCallback(
-    (inputValue: string, secondaryValue?: string) => {
+    (inputValue: string, secondaryValue?: string, opts?: Record<string, unknown>) => {
       if (!processor) return;
-      const toolInput: ToolInputType = { value: inputValue, secondary: secondaryValue };
+      const toolInput: ToolInputType = { value: inputValue, secondary: secondaryValue, options: opts };
       try {
         const r = processor.process(toolInput);
         setResult(r);
@@ -49,23 +63,35 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
     (value: string) => {
       setInput(value);
       if (processor?.autoProcess !== false && value) {
-        runProcessor(value, secondaryInput);
+        runProcessor(value, secondaryInput, options);
       } else if (!value) {
         setResult(null);
         setHasRun(false);
       }
     },
-    [processor, runProcessor, secondaryInput]
+    [processor, runProcessor, secondaryInput, options]
   );
 
   const handleSecondaryChange = useCallback(
     (value: string) => {
       setSecondaryInput(value);
       if (processor?.autoProcess !== false && input) {
-        runProcessor(input, value);
+        runProcessor(input, value, options);
       }
     },
-    [processor, runProcessor, input]
+    [processor, runProcessor, input, options]
+  );
+
+  const handleOptionChange = useCallback(
+    (key: string, value: unknown) => {
+      const newOpts = { ...options, [key]: value };
+      setOptions(newOpts);
+      // Re-run if autoProcess and there is input
+      if (processor?.autoProcess !== false && input) {
+        runProcessor(input, secondaryInput, newOpts);
+      }
+    },
+    [options, processor, input, secondaryInput, runProcessor]
   );
 
   const handleClear = () => {
@@ -82,7 +108,7 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
     setInput(ex);
     setSecondaryInput(exSec);
     if (processor.autoProcess !== false) {
-      runProcessor(ex, exSec);
+      runProcessor(ex, exSec, options);
     } else {
       setResult(null);
       setHasRun(false);
@@ -101,6 +127,15 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
   return (
     <div className="space-y-4">
       {tool.privacySensitive && <PrivacyNotice />}
+
+      {/* Option controls (checkboxes, selects) declared by processor */}
+      {processor.optionControls && processor.optionControls.length > 0 && (
+        <OptionControls
+          controls={processor.optionControls}
+          values={options}
+          onChange={handleOptionChange}
+        />
+      )}
 
       {/* Input — single or side-by-side (dual) layout */}
       {processor.hasSecondaryInput ? (
@@ -160,7 +195,7 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
           {/* Manual run button for processors that don't auto-process */}
           {processor.autoProcess === false && (
             <button
-              onClick={() => runProcessor(input, secondaryInput)}
+              onClick={() => runProcessor(input, secondaryInput, options)}
               disabled={!input || (processor.hasSecondaryInput && !secondaryInput)}
               className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
@@ -219,6 +254,92 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
           ))}
         </dl>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Option Controls renderer
+// ---------------------------------------------------------------------------
+
+interface OptionControlsProps {
+  controls: ToolOptionControl[];
+  values: Record<string, unknown>;
+  onChange: (key: string, value: unknown) => void;
+}
+
+function OptionControls({ controls, values, onChange }: OptionControlsProps) {
+  // Group checkboxes with the same group label, render selects inline
+  const groups = new Map<string, ToolOptionControl[]>();
+  const ungrouped: ToolOptionControl[] = [];
+
+  for (const c of controls) {
+    if (c.type === 'checkbox' && c.group) {
+      const g = groups.get(c.group) ?? [];
+      g.push(c);
+      groups.set(c.group, g);
+    } else {
+      ungrouped.push(c);
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-start gap-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-3 py-2.5">
+      {/* Ungrouped controls */}
+      {ungrouped.map((c) =>
+        c.type === 'select' ? (
+          <div key={c.key} className="flex items-center gap-2">
+            <label
+              htmlFor={`opt-${c.key}`}
+              className="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap"
+            >
+              {c.label}
+            </label>
+            <select
+              id={`opt-${c.key}`}
+              value={String(values[c.key] ?? c.defaultValue)}
+              onChange={(e) => onChange(c.key, e.target.value)}
+              className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              {c.options?.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <label key={c.key} className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={Boolean(values[c.key] ?? c.defaultValue)}
+              onChange={(e) => onChange(c.key, e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-gray-300 accent-blue-600"
+            />
+            <span className="text-xs text-gray-700 dark:text-gray-300">{c.label}</span>
+          </label>
+        )
+      )}
+
+      {/* Grouped checkboxes */}
+      {Array.from(groups.entries()).map(([groupName, groupControls]) => (
+        <fieldset key={groupName} className="flex items-center gap-1.5">
+          <legend className="text-xs font-medium text-gray-500 dark:text-gray-400 mr-1.5">
+            {groupName}:
+          </legend>
+          {groupControls.map((c) => (
+            <label key={c.key} className="flex items-center gap-1 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={Boolean(values[c.key] ?? c.defaultValue)}
+                onChange={(e) => onChange(c.key, e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-gray-300 accent-blue-600"
+              />
+              <span className="text-xs text-gray-700 dark:text-gray-300">{c.label}</span>
+            </label>
+          ))}
+        </fieldset>
+      ))}
     </div>
   );
 }

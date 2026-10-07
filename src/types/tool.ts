@@ -9,7 +9,11 @@ export type ToolCategoryId =
   | 'developer-utilities'
   | 'date-time'
   | 'data-code'
-  | 'utilities';
+  | 'utilities'
+  | 'regex'
+  | 'sql'
+  | 'xml'
+  | 'yaml';
 
 export interface Category {
   id: ToolCategoryId;
@@ -63,6 +67,21 @@ export interface ToolResult {
   meta?: Record<string, string | number>;
 }
 
+// Declarative UI controls rendered above the action bar.
+// Values are collected and passed into ToolInput.options.
+export type ToolOptionControlType = 'checkbox' | 'select';
+
+export interface ToolOptionControl {
+  key: string;
+  type: ToolOptionControlType;
+  label: string;
+  defaultValue: string | boolean;
+  // For select only
+  options?: Array<{ value: string; label: string }>;
+  // Checkbox group heading (optional, for visual grouping)
+  group?: string;
+}
+
 export interface ToolProcessor {
   /**
    * Run the tool. Called entirely in the browser — MUST be pure / side-effect-free.
@@ -83,6 +102,8 @@ export interface ToolProcessor {
   exampleInput?: string;
   /** Example secondary input value for "Load Example" button (dual-input tools) */
   exampleSecondary?: string;
+  /** Declarative option controls rendered above the action bar */
+  optionControls?: ToolOptionControl[];
 }
 
 // ---------------------------------------------------------------------------

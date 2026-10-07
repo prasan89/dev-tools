@@ -17,6 +17,11 @@ import { uuidValidatorProcessor } from './uuid-validator';
 import { passwordGeneratorProcessor } from './password-generator';
 import { unixTimestampConverterProcessor } from './unix-timestamp-converter';
 import { timestampToDateProcessor } from './timestamp-to-date';
+import { regexTesterProcessor } from './regex-tester';
+import { sqlFormatterProcessor } from './sql-formatter';
+import { xmlFormatterProcessor } from './xml-formatter';
+import { yamlFormatterProcessor } from './yaml-formatter';
+import { yamlToJsonProcessor } from './yaml-to-json';
 
 const processorRegistry: Record<string, ToolProcessor> = {
   'json-formatter': jsonFormatterProcessor,
@@ -35,9 +40,15 @@ const processorRegistry: Record<string, ToolProcessor> = {
   'password-generator': passwordGeneratorProcessor,
   'unix-timestamp-converter': unixTimestampConverterProcessor,
   'timestamp-to-date': timestampToDateProcessor,
+  'regex-tester': regexTesterProcessor,
+  'sql-formatter': sqlFormatterProcessor,
+  'xml-formatter': xmlFormatterProcessor,
+  'yaml-formatter': yamlFormatterProcessor,
+  'yaml-to-json': yamlToJsonProcessor,
 };
 
 export function getProcessor(toolId: string): ToolProcessor | undefined {
   return processorRegistry[toolId];
 }
+
 
