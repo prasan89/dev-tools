@@ -94,7 +94,7 @@ export function PdfViewer({
         const url = URL.createObjectURL(pdfFile.file);
         objectUrlRef.current = url;
 
-        const loadingTask = pdfjs.getDocument({ url, disableAutoFetch: true, disableStream: false });
+        const loadingTask = pdfjs.getDocument({ url, disableAutoFetch: true, disableStream: false, wasmUrl: '/wasm/' });
         loadingTaskRef.current = loadingTask;
         const doc = await loadingTask.promise;
         if (cancelled) {
