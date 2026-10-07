@@ -39,6 +39,13 @@ export function MobileNav() {
             >
               All Tools
             </Link>
+            <Link
+              href="/pdf-tools"
+              onClick={() => setOpen(false)}
+              className="rounded-md px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+            >
+              PDF Tools
+            </Link>
             {CATEGORIES.map((cat) => (
               <Link
                 key={cat.id}

@@ -76,6 +76,14 @@ export function Footer() {
             <ul className="space-y-2">
               <li>
                 <Link
+                  href="/pdf-tools"
+                  className="text-xs text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors font-medium"
+                >
+                  PDF Tools
+                </Link>
+              </li>
+              <li>
+                <Link
                   href="/donate"
                   className="text-xs text-pink-500 dark:text-pink-400 hover:text-pink-700 dark:hover:text-pink-300 transition-colors font-medium"
                 >
