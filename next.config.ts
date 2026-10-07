@@ -30,6 +30,7 @@ const CSP_DIRECTIVES = [
 const securityHeaders = [
   { key: "X-Content-Type-Options",  value: "nosniff" },
   { key: "X-Frame-Options",         value: "SAMEORIGIN" },
+  { key: "X-XSS-Protection",        value: "1; mode=block" },
   { key: "Referrer-Policy",         value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy",      value: "camera=(), microphone=(), geolocation=(), interest-cohort=()" },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
@@ -38,8 +39,13 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  compress: true,
+  poweredByHeader: false,
   cacheComponents: true,
   partialPrefetching: true,
+  experimental: {
+    optimizePackageImports: ["clsx", "next-themes"],
+  },
   turbopack: {
     rules: {
       "*.css": {
@@ -83,6 +89,28 @@ const nextConfig: NextConfig = {
           {
             key: "Cache-Control",
             value: "public, max-age=3600, stale-while-revalidate=86400",
+          },
+        ],
+      },
+      // JSON files — short cache with stale-while-revalidate
+      {
+        source: "/(.*.json)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=3600, stale-while-revalidate=86400",
+          },
+        ],
+      },
+      // HTML pages — CDN caches 1 hour, serves stale up to 24 h while revalidating.
+      // s-maxage=3600 is safe for static Next.js pages; avoids the trap of
+      // caching HTML for 1 year which would break deploys.
+      {
+        source: "/(.*)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, s-maxage=3600, stale-while-revalidate=86400",
           },
         ],
       },

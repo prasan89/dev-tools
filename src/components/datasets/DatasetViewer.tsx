@@ -2,10 +2,13 @@
 
 import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { Dataset } from '@/types/dataset';
 
 interface DatasetViewerProps {
-  dataset: Dataset;
+  slug: string;
+  recordCount: number;
+  fileSizeBytes: number;
+  initialData: unknown[];
+  totalRecords: number;
 }
 
 type Tab = 'table' | 'json';
@@ -48,13 +51,13 @@ function downloadFile(content: string, filename: string, mimeType: string) {
   URL.revokeObjectURL(url);
 }
 
-export function DatasetViewer({ dataset }: DatasetViewerProps) {
+export function DatasetViewer({ slug, recordCount, fileSizeBytes, initialData, totalRecords }: DatasetViewerProps) {
   const [activeTab, setActiveTab] = useState<Tab>('table');
   const [tableSearch, setTableSearch] = useState('');
   const [page, setPage] = useState(0);
   const [copied, setCopied] = useState(false);
 
-  const records = dataset.data as Record<string, unknown>[];
+  const records = initialData as Record<string, unknown>[];
   const columns = useMemo(() => {
     if (!records.length || typeof records[0] !== 'object' || records[0] === null) return [];
     return Object.keys(records[0]);
@@ -71,7 +74,7 @@ export function DatasetViewer({ dataset }: DatasetViewerProps) {
   const totalPages = Math.ceil(filteredRecords.length / PAGE_SIZE);
   const pageRecords = filteredRecords.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
-  const jsonString = useMemo(() => JSON.stringify(dataset.data, null, 2), [dataset.data]);
+  const jsonString = useMemo(() => JSON.stringify(initialData, null, 2), [initialData]);
 
   const handleCopy = async () => {
     try {
@@ -84,12 +87,12 @@ export function DatasetViewer({ dataset }: DatasetViewerProps) {
   };
 
   const handleDownloadJSON = () => {
-    downloadFile(jsonString, `${dataset.slug}.json`, 'application/json');
+    downloadFile(jsonString, `${slug}.json`, 'application/json');
   };
 
   const handleDownloadCSV = () => {
-    const csv = recordsToCSV(dataset.data as unknown[]);
-    downloadFile(csv, `${dataset.slug}.csv`, 'text/csv');
+    const csv = recordsToCSV(initialData as unknown[]);
+    downloadFile(csv, `${slug}.csv`, 'text/csv');
   };
 
   const cellValue = (v: unknown): string => {
@@ -98,6 +101,8 @@ export function DatasetViewer({ dataset }: DatasetViewerProps) {
     return String(v);
   };
 
+  const isTruncated = initialData.length < totalRecords;
+
   return (
     <div className="flex flex-col gap-4">
       {/* Header row: stats + actions */}
@@ -105,76 +110,91 @@ export function DatasetViewer({ dataset }: DatasetViewerProps) {
         <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
           <span>
             <span className="font-medium text-gray-900 dark:text-gray-100">
-              {dataset.recordCount.toLocaleString()}
+              {recordCount.toLocaleString()}
             </span>{' '}
             records
           </span>
           <span className="text-gray-300 dark:text-gray-600">|</span>
-          <span>{formatBytes(dataset.fileSizeBytes)}</span>
+          <span>{formatBytes(fileSizeBytes)}</span>
+          {isTruncated && (
+            <>
+              <span className="text-gray-300 dark:text-gray-600">|</span>
+              <span className="text-amber-600 dark:text-amber-400">
+                Showing first {initialData.length.toLocaleString()} of {totalRecords.toLocaleString()} records
+              </span>
+            </>
+          )}
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleCopy}
-            className={cn(
-              'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
-              'border-gray-200 dark:border-gray-700',
-              'bg-white dark:bg-gray-900',
-              'hover:bg-gray-50 dark:hover:bg-gray-800',
-              'text-gray-700 dark:text-gray-300'
-            )}
-          >
-            {copied ? (
-              <>
-                <svg className="h-3.5 w-3.5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                </svg>
-                Copied
-              </>
-            ) : (
-              <>
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
-                </svg>
-                Copy JSON
-              </>
-            )}
-          </button>
+        <div className="flex flex-col items-end gap-1.5">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCopy}
+              className={cn(
+                'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                'border-gray-200 dark:border-gray-700',
+                'bg-white dark:bg-gray-900',
+                'hover:bg-gray-50 dark:hover:bg-gray-800',
+                'text-gray-700 dark:text-gray-300'
+              )}
+            >
+              {copied ? (
+                <>
+                  <svg className="h-3.5 w-3.5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                  Copied
+                </>
+              ) : (
+                <>
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
+                  </svg>
+                  Copy JSON
+                </>
+              )}
+            </button>
 
-          <button
-            type="button"
-            onClick={handleDownloadJSON}
-            className={cn(
-              'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
-              'border-gray-200 dark:border-gray-700',
-              'bg-white dark:bg-gray-900',
-              'hover:bg-gray-50 dark:hover:bg-gray-800',
-              'text-gray-700 dark:text-gray-300'
-            )}
-          >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-            </svg>
-            JSON
-          </button>
+            <button
+              type="button"
+              onClick={handleDownloadJSON}
+              className={cn(
+                'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                'border-gray-200 dark:border-gray-700',
+                'bg-white dark:bg-gray-900',
+                'hover:bg-gray-50 dark:hover:bg-gray-800',
+                'text-gray-700 dark:text-gray-300'
+              )}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              JSON
+            </button>
 
-          <button
-            type="button"
-            onClick={handleDownloadCSV}
-            className={cn(
-              'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
-              'border-gray-200 dark:border-gray-700',
-              'bg-white dark:bg-gray-900',
-              'hover:bg-gray-50 dark:hover:bg-gray-800',
-              'text-gray-700 dark:text-gray-300'
-            )}
-          >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-            </svg>
-            CSV
-          </button>
+            <button
+              type="button"
+              onClick={handleDownloadCSV}
+              className={cn(
+                'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                'border-gray-200 dark:border-gray-700',
+                'bg-white dark:bg-gray-900',
+                'hover:bg-gray-50 dark:hover:bg-gray-800',
+                'text-gray-700 dark:text-gray-300'
+              )}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              CSV
+            </button>
+          </div>
+          {isTruncated && (
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              Download includes first {initialData.length.toLocaleString()} records
+            </p>
+          )}
         </div>
       </div>
 

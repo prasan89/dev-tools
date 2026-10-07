@@ -7,8 +7,9 @@ npm-debug.log*
 *.test.ts
 *.test.tsx
 __tests__
+*.md
+coverage
+.nyc_output
 .eslintrc*
 eslint.config.mjs
 jest.config.ts
-README.md
-AGENTS.md

@@ -71,6 +71,11 @@ export default async function DatasetDetailPage({ params }: DatasetPageProps) {
     ? dataset.data[0]
     : null;
 
+  // Slice data to avoid serializing the full dataset into SSG HTML
+  const PAGE_SIZE = 100;
+  const totalRecords = dataset.data.length;
+  const initialData = dataset.data.slice(0, PAGE_SIZE);
+
   return (
     <>
       <JsonLd data={breadcrumbSchema([
@@ -114,7 +119,13 @@ export default async function DatasetDetailPage({ params }: DatasetPageProps) {
             {/* Dataset viewer (client island) */}
             <section aria-labelledby="viewer-heading">
               <h2 id="viewer-heading" className="sr-only">Dataset preview</h2>
-              <DatasetViewer dataset={dataset} />
+              <DatasetViewer
+                slug={dataset.slug}
+                recordCount={dataset.recordCount}
+                fileSizeBytes={dataset.fileSizeBytes}
+                initialData={initialData}
+                totalRecords={totalRecords}
+              />
             </section>
 
             {/* SEO content: About */}

@@ -17,7 +17,8 @@ export const metadata: Metadata = {
 
 export default function HomePage() {
   const popularTools = getPopularTools();
-  const allTools = getEnabledTools();
+  const allTools = getEnabledTools().slice(0, 24);
+  const totalTools = getEnabledTools().length;
   const categories = getCategories();
   const popularDatasets = getPopularDatasets(6);
 
@@ -36,7 +37,7 @@ export default function HomePage() {
           <div className="mt-6 max-w-lg mx-auto">
             <SearchBar
               size="large"
-              placeholder={`Search ${allTools.length}+ tools…`}
+              placeholder={`Search ${totalTools}+ tools…`}
             />
           </div>
           <p className="mt-3 text-xs text-gray-400 dark:text-gray-600">
@@ -97,16 +98,29 @@ export default function HomePage() {
 
         {/* All tools */}
         <section aria-labelledby="all-tools-heading">
-          <h2
-            id="all-tools-heading"
-            className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400"
-          >
-            All Tools
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2
+              id="all-tools-heading"
+              className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400"
+            >
+              All Tools
+            </h2>
+            <Link href="/tools" className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
+              View all {totalTools} tools →
+            </Link>
+          </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {allTools.map((tool) => (
               <ToolCard key={tool.slug} tool={tool} />
             ))}
+          </div>
+          <div className="mt-4 text-center">
+            <Link
+              href="/tools"
+              className="inline-block text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              View all {totalTools} tools →
+            </Link>
           </div>
         </section>
       </div>
