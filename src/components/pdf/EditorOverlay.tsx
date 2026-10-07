@@ -4,6 +4,7 @@ import { useCallback, useRef } from 'react';
 import type {
   EditorObject, TextObject, ImageObject,
   RectObject, EllipseObject, LineObject, ArrowObject, AnnotationObject,
+  StrokeObject, WhiteoutObject,
 } from '@/lib/pdf/editPdf';
 import { pdfToScreenPoint } from '@/lib/pdf/editPdf';
 
@@ -452,6 +453,103 @@ function EllipseHandles({
   );
 }
 
+// ─── Stroke handle component (move/delete only) ───────────────────────────────
+
+function StrokeHandles({
+  obj,
+  scale,
+  pageHeightPt,
+  isSelected,
+  onSelect,
+  onUpdate,
+  onDelete,
+}: {
+  obj: StrokeObject;
+  scale: number;
+  pageHeightPt: number;
+  isSelected: boolean;
+  onSelect: (id: string | null) => void;
+  onUpdate: (id: string, patch: Partial<EditorObject>) => void;
+  onDelete: (id: string) => void;
+}) {
+  const dragStateRef = useRef<{
+    startX: number; startY: number;
+    startPoints: { x: number; y: number }[];
+  } | null>(null);
+
+  // Compute bounding box for the hit area
+  if (obj.points.length === 0) return null;
+  let minPx = Infinity, minPy = Infinity, maxPx = -Infinity, maxPy = -Infinity;
+  for (const pt of obj.points) {
+    const sp = pdfToScreenPoint(pt.x, pt.y, scale, pageHeightPt);
+    if (sp.x < minPx) minPx = sp.x;
+    if (sp.y < minPy) minPy = sp.y;
+    if (sp.x > maxPx) maxPx = sp.x;
+    if (sp.y > maxPy) maxPy = sp.y;
+  }
+  const pad = Math.max(8, obj.width * scale / 2);
+  const left = minPx - pad;
+  const top = minPy - pad;
+  const w = maxPx - minPx + pad * 2;
+  const h = maxPy - minPy + pad * 2;
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!isSelected) onSelect(obj.id);
+    dragStateRef.current = {
+      startX: e.clientX, startY: e.clientY,
+      startPoints: obj.points.map((p) => ({ ...p })),
+    };
+    (e.target as Element).setPointerCapture(e.pointerId);
+  }, [isSelected, obj, onSelect]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    const ds = dragStateRef.current;
+    if (!ds) return;
+    e.preventDefault();
+    const dx = (e.clientX - ds.startX) / scale;
+    const dy = -(e.clientY - ds.startY) / scale;
+    onUpdate(obj.id, { points: ds.startPoints.map((p) => ({ x: p.x + dx, y: p.y + dy })) });
+  }, [obj, onUpdate, scale]);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    dragStateRef.current = null;
+    (e.target as Element).releasePointerCapture(e.pointerId);
+  }, []);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!isSelected) return;
+    const step = (e.shiftKey ? 10 : 1) / scale;
+    let dx = 0, dy = 0;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); dx = -step; }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); dx = step; }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); dy = step; }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); dy = -step; }
+    else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); onDelete(obj.id); return; }
+    if (dx || dy) onUpdate(obj.id, { points: obj.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) });
+  }, [isSelected, obj, onDelete, onUpdate, scale]);
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label="Freehand stroke"
+      aria-selected={isSelected}
+      style={{
+        position: 'absolute', left, top, width: Math.max(w, 16), height: Math.max(h, 16),
+        outline: isSelected ? '2px solid #2563eb' : 'none',
+        cursor: 'move', userSelect: 'none', touchAction: 'none',
+      }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onClick={(e) => { e.stopPropagation(); onSelect(obj.id); }}
+      onKeyDown={handleKeyDown}
+    />
+  );
+}
+
 // ─── Main overlay ─────────────────────────────────────────────────────────────
 
 export function EditorOverlay({
@@ -516,8 +614,24 @@ export function EditorOverlay({
           );
         }
 
-        // text, image, rect, annotation — all use bounding box handles
-        const boxObj = obj as TextObject | ImageObject | RectObject | AnnotationObject;
+        if (obj.type === 'stroke') {
+          return (
+            <div key={key} style={{ pointerEvents: 'all' }}>
+              <StrokeHandles
+                obj={obj as StrokeObject}
+                scale={scale}
+                pageHeightPt={pageHeightPt}
+                isSelected={isSelected}
+                onSelect={onSelect}
+                onUpdate={onUpdate}
+                onDelete={onDelete}
+              />
+            </div>
+          );
+        }
+
+        // text, image, rect, annotation, whiteout — all use bounding box handles
+        const boxObj = obj as TextObject | ImageObject | RectObject | AnnotationObject | WhiteoutObject;
         const rect = pdfRectToScreen(boxObj.x, boxObj.y, boxObj.width, boxObj.height, scale, pageHeightPt);
         const showRotate = obj.type === 'image' || obj.type === 'rect';
 

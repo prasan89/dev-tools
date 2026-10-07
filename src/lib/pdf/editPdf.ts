@@ -132,8 +132,44 @@ export interface AnnotationObject {
   zIndex: number;
 }
 
+// ─── Stroke object (M35 — freehand drawing) ────────────────────────────────────
+
+export interface StrokePoint {
+  x: number; // PDF coords
+  y: number; // PDF coords
+}
+
+export interface StrokeObject {
+  id: string;
+  type: 'stroke';
+  pageIndex: number;
+  points: StrokePoint[];
+  color: string;
+  width: number;
+  opacity: number;
+  zIndex: number;
+}
+
+// ─── Whiteout object (M36 — cover/erase) ─────────────────────────────────────
+
+export interface WhiteoutObject {
+  id: string;
+  type: 'whiteout';
+  pageIndex: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fillColor: string;   // default '#ffffff'
+  fillOpacity: number; // default 1
+  borderColor: string;
+  borderWidth: number;
+  opacity: number;
+  zIndex: number;
+}
+
 export type ShapeObject = RectObject | EllipseObject | LineObject | ArrowObject;
-export type EditorObject = TextObject | ImageObject | ShapeObject | AnnotationObject;
+export type EditorObject = TextObject | ImageObject | ShapeObject | AnnotationObject | StrokeObject | WhiteoutObject;
 
 // ─── Editor state ─────────────────────────────────────────────────────────────
 
@@ -240,8 +276,11 @@ export function duplicateObject(state: EditorState, id: string): EditorState {
   } else if (obj.type === 'ellipse') {
     const ell = obj as EllipseObject;
     newObj = { ...ell, id: crypto.randomUUID(), cx: ell.cx + 10, cy: ell.cy - 10, zIndex } as EditorObject;
+  } else if (obj.type === 'stroke') {
+    const st = obj as StrokeObject;
+    newObj = { ...st, id: crypto.randomUUID(), points: st.points.map((p) => ({ x: p.x + 10, y: p.y - 10 })), zIndex } as EditorObject;
   } else {
-    const boxObj = obj as TextObject | ImageObject | RectObject | AnnotationObject;
+    const boxObj = obj as TextObject | ImageObject | RectObject | AnnotationObject | WhiteoutObject;
     newObj = { ...boxObj, id: crypto.randomUUID(), x: boxObj.x + 10, y: boxObj.y - 10, zIndex } as EditorObject;
   }
 
@@ -541,6 +580,32 @@ export async function buildEditedPdf(
             opacity: ann.opacity,
           });
         }
+
+      } else if (obj.type === 'stroke') {
+        const st = obj as StrokeObject;
+        if (st.points.length < 2) continue;
+        const { r, g, b } = hexToRgb(st.color);
+        for (let i = 0; i < st.points.length - 1; i++) {
+          page.drawLine({
+            start: { x: st.points[i].x, y: st.points[i].y },
+            end: { x: st.points[i + 1].x, y: st.points[i + 1].y },
+            thickness: st.width,
+            color: rgb(r, g, b),
+            opacity: st.opacity,
+          });
+        }
+
+      } else if (obj.type === 'whiteout') {
+        const wo = obj as WhiteoutObject;
+        const { r: fr, g: fg, b: fb } = hexToRgb(wo.fillColor);
+        const { r: br, g: bg, b: bb } = hexToRgb(wo.borderColor);
+        page.drawRectangle({
+          x: wo.x, y: wo.y, width: wo.width, height: wo.height,
+          color: rgb(fr, fg, fb),
+          opacity: wo.fillOpacity * wo.opacity,
+          borderColor: wo.borderWidth > 0 ? rgb(br, bg, bb) : undefined,
+          borderWidth: wo.borderWidth,
+        });
       }
     }
   }

@@ -9,7 +9,7 @@ import { formatFileSize } from '@/lib/pdf/validation';
 import type { PdfFile } from '@/types/pdf';
 import type {
   EditorObject, TextObject, ImageObject, RectObject,
-  EllipseObject, LineObject, ArrowObject, AnnotationObject,
+  EllipseObject, LineObject, ArrowObject, AnnotationObject, StrokeObject, WhiteoutObject,
   EditOutcome, FontFamily, TextAlign, AnnotationType, ArrowheadStyle,
 } from '@/lib/pdf/editPdf';
 import {
@@ -24,12 +24,12 @@ import {
   duplicateObject,
   screenToPdfPoint,
 } from '@/lib/pdf/editPdf';
-import type { EditorState } from '@/lib/pdf/editPdf';
+import type { EditorState, StrokePoint } from '@/lib/pdf/editPdf';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type SaveState = 'idle' | 'saving' | 'done' | 'error';
-type ToolMode = 'select' | 'text' | 'image' | 'rect' | 'ellipse' | 'line' | 'arrow' | 'highlight' | 'underline' | 'strikethrough';
+type ToolMode = 'select' | 'text' | 'image' | 'rect' | 'ellipse' | 'line' | 'arrow' | 'highlight' | 'underline' | 'strikethrough' | 'pen' | 'whiteout';
 
 interface PageInfo {
   number: number;
@@ -303,6 +303,39 @@ function StylePanel({
     );
   }
 
+  if (obj.type === 'stroke') {
+    const st = obj as StrokeObject;
+    return (
+      <div className="flex flex-wrap gap-2 items-center px-1 py-1 text-xs">
+        <span className="text-gray-500 font-medium">Stroke:</span>
+        <label className="flex items-center gap-1">Color <input type="color" value={st.color} onChange={(e) => onUpdate(st.id, { color: e.target.value })} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
+        <label className="flex items-center gap-1">Width
+          <input type="number" value={st.width} onChange={(e) => onUpdate(st.id, { width: Math.max(1, Number(e.target.value)) })} min={1} max={40} className="w-12 rounded border border-gray-300 px-1 py-0.5" />
+        </label>
+        <label className="flex items-center gap-1">Opacity
+          <input type="range" value={Math.round(st.opacity * 100)} onChange={(e) => onUpdate(st.id, { opacity: Number(e.target.value) / 100 })} min={10} max={100} className="w-16" />
+        </label>
+      </div>
+    );
+  }
+
+  if (obj.type === 'whiteout') {
+    const wo = obj as WhiteoutObject;
+    return (
+      <div className="flex flex-wrap gap-2 items-center px-1 py-1 text-xs">
+        <span className="text-gray-500 font-medium">Whiteout:</span>
+        <label className="flex items-center gap-1">Fill <input type="color" value={wo.fillColor} onChange={(e) => onUpdate(wo.id, { fillColor: e.target.value } as Partial<WhiteoutObject>)} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
+        <label className="flex items-center gap-1">Opacity
+          <input type="range" value={Math.round(wo.fillOpacity * 100)} onChange={(e) => onUpdate(wo.id, { fillOpacity: Number(e.target.value) / 100 } as Partial<WhiteoutObject>)} min={10} max={100} className="w-16" />
+        </label>
+        <label className="flex items-center gap-1">Border <input type="color" value={wo.borderColor} onChange={(e) => onUpdate(wo.id, { borderColor: e.target.value } as Partial<WhiteoutObject>)} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
+        <label className="flex items-center gap-1">Border W
+          <input type="number" value={wo.borderWidth} onChange={(e) => onUpdate(wo.id, { borderWidth: Math.max(0, Number(e.target.value)) } as Partial<WhiteoutObject>)} min={0} max={20} className="w-12 rounded border border-gray-300 px-1 py-0.5" />
+        </label>
+      </div>
+    );
+  }
+
   return null;
 }
 
@@ -352,6 +385,10 @@ export default function EditPdfPage() {
   const [pageScale, setPageScale] = useState(1);
   const [pageDims, setPageDims] = useState({ widthPt: 595, heightPt: 842 });
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const strokeCanvasRef = useRef<HTMLCanvasElement>(null);
+  const strokePointsRef = useRef<StrokePoint[]>([]);
+  const [penColor, setPenColor] = useState('#e11d48');
+  const [penWidth, setPenWidth] = useState(3);
 
   const revokePdfUrl = useCallback(() => {
     if (pdfUrlRef.current) {
@@ -454,7 +491,7 @@ export default function EditPdfPage() {
 
   const isDrawingTool = (m: ToolMode) =>
     m === 'rect' || m === 'ellipse' || m === 'line' || m === 'arrow' ||
-    m === 'highlight' || m === 'underline' || m === 'strikethrough';
+    m === 'highlight' || m === 'underline' || m === 'strikethrough' || m === 'whiteout';
 
   const getCanvasRelative = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -504,23 +541,110 @@ export default function EditPdfPage() {
         setDrawState({ startX: x, startY: y, currentX: x, currentY: y });
         (e.target as Element).setPointerCapture(e.pointerId);
       }
+
+      if (toolMode === 'pen') {
+        e.preventDefault();
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        (e.target as Element).setPointerCapture(e.pointerId);
+        const { x, y } = getCanvasRelative(e);
+        const pdfPt = screenToPdfPoint(x, y, pageScale, pageDims.heightPt);
+        strokePointsRef.current = [{ x: pdfPt.x, y: pdfPt.y }];
+
+        // Initialise the stroke canvas overlay to match the page canvas
+        const sc = strokeCanvasRef.current;
+        if (sc) {
+          sc.width = canvas.width;
+          sc.height = canvas.height;
+          const ctx = sc.getContext('2d');
+          if (ctx) {
+            ctx.clearRect(0, 0, sc.width, sc.height);
+            ctx.strokeStyle = penColor;
+            ctx.lineWidth = penWidth;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+          }
+        }
+      }
     },
     [toolMode, pageScale, pageDims, currentPage, pushHistory],
   );
 
   const handleCanvasPointerMove = useCallback(
     (e: React.PointerEvent<HTMLCanvasElement>) => {
-      if (!drawState || !isDrawingTool(toolMode)) return;
-      const { x, y } = getCanvasRelative(e);
-      setDrawState((ds) => ds ? { ...ds, currentX: x, currentY: y } : null);
+      if (drawState && isDrawingTool(toolMode)) {
+        const { x, y } = getCanvasRelative(e);
+        setDrawState((ds) => ds ? { ...ds, currentX: x, currentY: y } : null);
+      }
+
+      if (toolMode === 'pen' && strokePointsRef.current.length > 0) {
+        const { x, y } = getCanvasRelative(e);
+        const pdfPt = screenToPdfPoint(x, y, pageScale, pageDims.heightPt);
+        strokePointsRef.current.push({ x: pdfPt.x, y: pdfPt.y });
+
+        const sc = strokeCanvasRef.current;
+        if (sc) {
+          const ctx = sc.getContext('2d');
+          if (ctx) {
+            ctx.lineTo(x, y);
+            ctx.stroke();
+          }
+        }
+      }
     },
-    [drawState, toolMode],
+    [drawState, toolMode, pageScale, pageDims],
   );
 
   const handleCanvasPointerUp = useCallback(
     (e: React.PointerEvent<HTMLCanvasElement>) => {
-      if (!drawState || !isDrawingTool(toolMode)) return;
       (e.target as Element).releasePointerCapture(e.pointerId);
+
+      // Pen: finalize stroke
+      if (toolMode === 'pen') {
+        const pts = strokePointsRef.current;
+        strokePointsRef.current = [];
+
+        // Clear stroke canvas overlay
+        const sc = strokeCanvasRef.current;
+        if (sc) {
+          const ctx = sc.getContext('2d');
+          if (ctx) ctx.clearRect(0, 0, sc.width, sc.height);
+        }
+
+        if (pts.length < 2) return;
+
+        // Simplify: keep every Nth point to limit point count, always keep last
+        const MAX_PTS = 300;
+        let simplified = pts;
+        if (pts.length > MAX_PTS) {
+          const step = Math.ceil(pts.length / MAX_PTS);
+          simplified = pts.filter((_, i) => i % step === 0);
+          if (simplified[simplified.length - 1] !== pts[pts.length - 1]) {
+            simplified.push(pts[pts.length - 1]);
+          }
+        }
+
+        const newObj: Omit<StrokeObject, 'zIndex'> = {
+          id: crypto.randomUUID(),
+          type: 'stroke',
+          pageIndex: currentPage - 1,
+          points: simplified,
+          color: penColor,
+          width: penWidth,
+          opacity: 1,
+        };
+        setEditorState((prev) => {
+          pushHistory(prev);
+          const next = addObject(prev, newObj);
+          setSelectedId(next.objects[next.objects.length - 1].id);
+          return next;
+        });
+        return;
+      }
+
+      if (!drawState || !isDrawingTool(toolMode)) return;
 
       const { startX, startY, currentX, currentY } = drawState;
       setDrawState(null);
@@ -544,6 +668,12 @@ export default function EditPdfPage() {
         const rx = Math.abs(p2.x - p1.x) / 2;
         const ry = Math.abs(p2.y - p1.y) / 2;
         newObj = { id: crypto.randomUUID(), type: 'ellipse', pageIndex: currentPage - 1, cx, cy, rx: Math.max(5, rx), ry: Math.max(5, ry), borderColor: '#000000', fillColor: '#ffffff', fillOpacity: 0, borderWidth: 2, borderOpacity: 1, opacity: 1 } as Omit<EllipseObject, 'zIndex'>;
+      } else if (toolMode === 'whiteout') {
+        const x = Math.min(p1.x, p2.x);
+        const y = Math.min(p1.y, p2.y);
+        const w = Math.abs(p2.x - p1.x);
+        const h = Math.abs(p2.y - p1.y);
+        newObj = { id: crypto.randomUUID(), type: 'whiteout', pageIndex: currentPage - 1, x, y, width: Math.max(5, w), height: Math.max(5, h), fillColor: '#ffffff', fillOpacity: 1, borderColor: '#cccccc', borderWidth: 0, opacity: 1 } as Omit<WhiteoutObject, 'zIndex'>;
       } else {
         // rect or annotations
         const x = Math.min(p1.x, p2.x);
@@ -575,7 +705,7 @@ export default function EditPdfPage() {
       });
       setToolMode('select');
     },
-    [drawState, toolMode, pageScale, pageDims, currentPage, pushHistory],
+    [drawState, toolMode, pageScale, pageDims, currentPage, pushHistory, penColor, penWidth],
   );
 
   // ─── Image add ────────────────────────────────────────────────────────────────
@@ -747,6 +877,16 @@ export default function EditPdfPage() {
         {toolBtn('underline', '‾ Underline', 'Draw underline')}
         {toolBtn('strikethrough', '̶S̶ Strike', 'Draw strikethrough')}
         <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
+        {toolBtn('pen', '✏ Draw', 'Freehand drawing')}
+        <label className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400" title="Pen color">
+          <input type="color" value={penColor} onChange={(e) => setPenColor(e.target.value)} className="w-6 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" aria-label="Pen color" />
+        </label>
+        <label className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400" title="Pen width">
+          <input type="number" value={penWidth} onChange={(e) => setPenWidth(Math.max(1, Math.min(40, Number(e.target.value))))} min={1} max={40} className="w-10 rounded border border-gray-300 dark:border-gray-600 px-1 py-0.5 text-xs bg-white dark:bg-gray-900" aria-label="Pen width" />
+        </label>
+        <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
+        {toolBtn('whiteout', '⬜ Whiteout', 'Draw whiteout cover')}
+        <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
         <button onClick={undo} disabled={history.length === 0} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-40" aria-label="Undo">↩</button>
         <button onClick={redo} disabled={future.length === 0} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-40" aria-label="Redo">↪</button>
         {selectedObj && (
@@ -797,7 +937,13 @@ export default function EditPdfPage() {
       {/* Mode hint */}
       {toolMode !== 'select' && (
         <p className="text-xs text-blue-600 dark:text-blue-400 px-1" role="status">
-          {toolMode === 'text' ? 'Click to place a text box.' : `Draw on the page to add ${toolMode}.`}
+          {toolMode === 'text' ? 'Click to place a text box.' : toolMode === 'pen' ? 'Draw on the page. Release to finish.' : `Draw on the page to add ${toolMode}.`}
+        </p>
+      )}
+      {/* Whiteout notice */}
+      {toolMode === 'whiteout' && (
+        <p className="text-xs text-amber-700 dark:text-amber-400 px-1 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg py-1.5" role="note">
+          Whiteout visually covers content. For permanent removal of sensitive information, use Redact PDF.
         </p>
       )}
 
@@ -826,7 +972,7 @@ export default function EditPdfPage() {
         )}
         <canvas
           ref={canvasRef}
-          style={{ display: 'block', cursor: toolMode === 'text' ? 'text' : isDrawingTool(toolMode) ? 'crosshair' : 'default', touchAction: isDrawingTool(toolMode) ? 'none' : 'auto' }}
+          style={{ display: 'block', cursor: toolMode === 'text' ? 'text' : (isDrawingTool(toolMode) || toolMode === 'pen') ? 'crosshair' : 'default', touchAction: (isDrawingTool(toolMode) || toolMode === 'pen') ? 'none' : 'auto' }}
           onPointerDown={handleCanvasPointerDown}
           onPointerMove={handleCanvasPointerMove}
           onPointerUp={handleCanvasPointerUp}
@@ -924,8 +1070,49 @@ export default function EditPdfPage() {
               // strikethrough
               return <div key={obj.id} aria-hidden="true" style={{ position: 'absolute', left: r.left, top: r.top + r.height / 2 - ann.lineWidth / 2, width: r.width, height: ann.lineWidth, background: ann.color, opacity: ann.opacity, pointerEvents: 'none' }} />;
             }
+            if (obj.type === 'stroke') {
+              const st = obj as StrokeObject;
+              if (st.points.length < 2) return null;
+              let minPx = Infinity, minPy = Infinity, maxPx = -Infinity, maxPy = -Infinity;
+              for (const pt of st.points) {
+                const sp = { x: pt.x * pageScale, y: (pageDims.heightPt - pt.y) * pageScale };
+                if (sp.x < minPx) minPx = sp.x;
+                if (sp.y < minPy) minPy = sp.y;
+                if (sp.x > maxPx) maxPx = sp.x;
+                if (sp.y > maxPy) maxPy = sp.y;
+              }
+              const pad = 4;
+              const svgLeft = minPx - pad;
+              const svgTop = minPy - pad;
+              const svgW = maxPx - minPx + pad * 2;
+              const svgH = maxPy - minPy + pad * 2;
+              const pts = st.points.map((pt) => {
+                const sp = { x: pt.x * pageScale - svgLeft, y: (pageDims.heightPt - pt.y) * pageScale - svgTop };
+                return `${sp.x},${sp.y}`;
+              }).join(' ');
+              return (
+                <svg key={obj.id} aria-hidden="true" style={{ position: 'absolute', left: svgLeft, top: svgTop, width: Math.max(svgW, 4), height: Math.max(svgH, 4), pointerEvents: 'none', overflow: 'visible' }}>
+                  <polyline points={pts} stroke={st.color} strokeWidth={st.width} strokeLinecap="round" strokeLinejoin="round" fill="none" opacity={st.opacity} />
+                </svg>
+              );
+            }
+            if (obj.type === 'whiteout') {
+              const wo = obj as WhiteoutObject;
+              const r = pdfRectToScreen(wo.x, wo.y, wo.width, wo.height, pageScale, pageDims.heightPt);
+              return (
+                <div key={obj.id} aria-hidden="true"
+                  style={{ position: 'absolute', left: r.left, top: r.top, width: r.width, height: r.height, background: wo.fillColor, opacity: wo.fillOpacity * wo.opacity, border: wo.borderWidth > 0 ? `${wo.borderWidth}px solid ${wo.borderColor}` : 'none', pointerEvents: 'none', boxSizing: 'border-box' }} />
+              );
+            }
             return null;
           })}
+
+        {/* Pen stroke canvas overlay — drawn into by pointer events, never triggers React re-renders per point */}
+        <canvas
+          ref={strokeCanvasRef}
+          aria-hidden="true"
+          style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none', display: toolMode === 'pen' ? 'block' : 'none' }}
+        />
 
         {/* Drawing ghost */}
         {drawGhost}
@@ -955,7 +1142,9 @@ export default function EditPdfPage() {
           {editorState.objects.filter((o) => o.type === 'text').length} text, {' '}
           {editorState.objects.filter((o) => o.type === 'image').length} image, {' '}
           {editorState.objects.filter((o) => o.type === 'rect' || o.type === 'ellipse' || o.type === 'line' || o.type === 'arrow').length} shape, {' '}
-          {editorState.objects.filter((o) => o.type === 'highlight' || o.type === 'underline' || o.type === 'strikethrough').length} annotation
+          {editorState.objects.filter((o) => o.type === 'highlight' || o.type === 'underline' || o.type === 'strikethrough').length} annotation, {' '}
+          {editorState.objects.filter((o) => o.type === 'stroke').length} stroke, {' '}
+          {editorState.objects.filter((o) => o.type === 'whiteout').length} whiteout
           {' '}across {new Set(editorState.objects.map((o) => o.pageIndex)).size} page{new Set(editorState.objects.map((o) => o.pageIndex)).size !== 1 ? 's' : ''}
         </p>
       )}
