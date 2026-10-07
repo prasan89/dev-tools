@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "clsx": "^2.1.1",
+    "docx": "^9.9.0",
     "js-yaml": "^5.4.3",
     "jsonpath-plus": "^11.2.0",
     "jszip": "^3.10.2",
@@ -19,11 +20,13 @@
     "next-themes": "^0.4.6",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.4.299",
+    "pptxgenjs": "^4.0.1",
     "razorpay": "^2.9.8",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "sql-formatter": "^15.9.0",
-    "tesseract.js": "^7.0.0"
+    "tesseract.js": "^7.0.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",

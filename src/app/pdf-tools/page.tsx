@@ -3,16 +3,16 @@ import Link from 'next/link';
 import { siteUrl } from '@/lib/seo/site-config';
 
 export const metadata: Metadata = {
-  title: 'PDF Tools — Free Online PDF Utilities | DevToolsHub',
+  title: 'Fast, Free & Private PDF Tools — DevToolsHub',
   description:
-    'Free online PDF tools that run entirely in your browser. View, inspect, and work with PDF files — no uploads, no servers, complete privacy.',
+    'Free online PDF tools that run entirely in your browser. Merge, split, compress, edit, convert and OCR PDFs — your files stay on your device, never uploaded.',
   alternates: {
     canonical: siteUrl('/pdf-tools'),
   },
   openGraph: {
-    title: 'PDF Tools — Free Online PDF Utilities | DevToolsHub',
+    title: 'Fast, Free & Private PDF Tools — DevToolsHub',
     description:
-      'Free online PDF tools that run entirely in your browser. View, inspect, and work with PDF files — no uploads, no servers, complete privacy.',
+      'Free online PDF tools that run entirely in your browser. Merge, split, compress, edit, convert and OCR PDFs — your files stay on your device, never uploaded.',
     url: siteUrl('/pdf-tools'),
     siteName: 'DevToolsHub',
     type: 'website',
@@ -234,10 +234,10 @@ export default function PdfToolsPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           </span>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">PDF Tools</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Fast, Free &amp; Private PDF Tools</h1>
         </div>
         <p className="text-sm text-gray-600 dark:text-gray-400 max-w-2xl">
-          Free PDF utilities that run entirely in your browser. Your files never leave your device — no uploads, no servers, no accounts required.
+          Merge, split, compress, edit, convert and OCR PDFs directly in your browser. Your files stay on your device.
         </p>
 
         {/* Privacy badge */}
