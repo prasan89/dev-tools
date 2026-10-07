@@ -19,7 +19,7 @@ const CSP_DIRECTIVES = [
   "worker-src 'self' blob:",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
-  "img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com https://pagead2.googlesyndication.com",
+  "img-src 'self' blob: data: https://www.google-analytics.com https://www.googletagmanager.com https://pagead2.googlesyndication.com",
   "connect-src 'self' https://www.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net https://region1.google-analytics.com",
   "frame-src https://googleads.g.doubleclick.net https://tpc.googlesyndication.com",
   "object-src 'none'",
