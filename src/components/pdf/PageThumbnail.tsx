@@ -37,13 +37,13 @@ async function renderPageThumb(
   page.cleanup();
 }
 
-// ─── Shared document cache per blob URL ───────────────────────────────────────
+// ─── Shared document cache per file ID ───────────────────────────────────────
 
 type DocCacheEntry = { doc: PdfDocProxy; refCount: number };
 const docCache = new Map<string, DocCacheEntry | Promise<DocCacheEntry>>();
 
-async function acquireDoc(dataUrl: string): Promise<PdfDocProxy> {
-  const existing = docCache.get(dataUrl);
+async function acquireDoc(cacheKey: string, pdfData: ArrayBuffer): Promise<PdfDocProxy> {
+  const existing = docCache.get(cacheKey);
   if (existing instanceof Promise) {
     return (await existing).doc;
   }
@@ -53,31 +53,33 @@ async function acquireDoc(dataUrl: string): Promise<PdfDocProxy> {
   }
   const promise = (async () => {
     const pdfjs = await loadPdfjs();
-    const task = pdfjs.getDocument({ url: dataUrl, disableAutoFetch: true, wasmUrl: '/wasm/' });
+    const task = pdfjs.getDocument({ data: pdfData.slice(0), disableAutoFetch: true, wasmUrl: '/wasm/' });
     const doc = await task.promise;
     const entry: DocCacheEntry = { doc, refCount: 1 };
-    docCache.set(dataUrl, entry);
+    docCache.set(cacheKey, entry);
     return entry;
   })();
-  docCache.set(dataUrl, promise);
+  docCache.set(cacheKey, promise);
   return (await promise).doc;
 }
 
-function releaseDoc(dataUrl: string) {
-  const entry = docCache.get(dataUrl);
+function releaseDoc(cacheKey: string) {
+  const entry = docCache.get(cacheKey);
   if (!entry || entry instanceof Promise) return;
   entry.refCount--;
   if (entry.refCount <= 0) {
     entry.doc.cleanup();
-    docCache.delete(dataUrl);
+    docCache.delete(cacheKey);
   }
 }
 
 // ─── PageThumbnail component ──────────────────────────────────────────────────
 
 export interface PageThumbnailProps {
-  /** object URL of the source PDF */
-  pdfUrl: string;
+  /** Raw PDF bytes */
+  pdfData: ArrayBuffer;
+  /** Stable cache key (e.g. file ID) — used to share the parsed document across thumbnails */
+  cacheKey: string;
   /** 1-based page number to render */
   pageNumber: number;
   /** Additional visual rotation (0, 90, 180, 270) — CSS transform only */
@@ -100,7 +102,8 @@ export interface PageThumbnailProps {
 }
 
 export function PageThumbnail({
-  pdfUrl,
+  pdfData,
+  cacheKey,
   pageNumber,
   rotation,
   selected,
@@ -133,18 +136,18 @@ export function PageThumbnail({
 
     const render = async () => {
       try {
-        const doc = await acquireDoc(pdfUrl);
+        const doc = await acquireDoc(cacheKey, pdfData);
         acquired = true;
-        if (cancelled) { releaseDoc(pdfUrl); return; }
+        if (cancelled) { releaseDoc(cacheKey); return; }
         const canvas = canvasRef.current;
-        if (!canvas) { releaseDoc(pdfUrl); return; }
+        if (!canvas) { releaseDoc(cacheKey); return; }
         const scale = thumbWidth / 595; // approximate: assume A4 width
         await renderPageThumb(doc, pageNumber, scale, canvas);
         if (!cancelled) setRendered(true);
-        releaseDoc(pdfUrl);
+        releaseDoc(cacheKey);
       } catch {
         if (!cancelled) setError(true);
-        if (acquired) releaseDoc(pdfUrl);
+        if (acquired) releaseDoc(cacheKey);
       }
     };
 
@@ -163,7 +166,7 @@ export function PageThumbnail({
       cancelled = true;
       observer.disconnect();
     };
-  }, [pdfUrl, pageNumber, thumbWidth]);
+  }, [cacheKey, pdfData, pageNumber, thumbWidth]);
 
   // CSS rotation (visual only — actual rotation is applied at PDF build time)
   const swapped = rotation === 90 || rotation === 270;

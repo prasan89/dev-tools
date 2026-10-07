@@ -44,7 +44,7 @@ const PREVIEW_MAX_W = 760;
 const PREVIEW_MAX_H = 900;
 
 async function renderPageToCanvas(
-  pdfUrl: string,
+  pdfData: ArrayBuffer,
   pageNumber: number,
   canvas: HTMLCanvasElement,
 ): Promise<{ widthPt: number; heightPt: number; rotation: number; scale: number }> {
@@ -52,7 +52,7 @@ async function renderPageToCanvas(
   if (!pdfjs.GlobalWorkerOptions.workerPort) {
     pdfjs.GlobalWorkerOptions.workerPort = new Worker('/pdf.worker.min.mjs', { type: 'module' });
   }
-  const task = pdfjs.getDocument({ url: pdfUrl, disableAutoFetch: true, wasmUrl: '/wasm/' });
+  const task = pdfjs.getDocument({ data: pdfData.slice(0), disableAutoFetch: true, wasmUrl: '/wasm/' });
   const doc = await task.promise;
   const page = await doc.getPage(pageNumber);
   const rotation = page.rotate;
@@ -389,6 +389,7 @@ export default function EditPdfPage() {
   const strokePointsRef = useRef<StrokePoint[]>([]);
   const [penColor, setPenColor] = useState('#e11d48');
   const [penWidth, setPenWidth] = useState(3);
+  const pdfBytesRef = useRef<ArrayBuffer | null>(null);
 
   const revokePdfUrl = useCallback(() => {
     if (pdfUrlRef.current) {
@@ -441,23 +442,29 @@ export default function EditPdfPage() {
     const file = files[0];
     if (!file) return;
     revokePdfUrl();
-    const url = URL.createObjectURL(file.file);
-    pdfUrlRef.current = url;
-    setPdfFile(file);
-    setPdfUrl(url);
-    setEditorState(createEditorState());
-    setHistory([]); setFuture([]);
-    setSelectedId(null); setSaveState('idle'); setSaveResult(null); setLoadError(null);
-    setCurrentPage(1); setPageInfos([]);
+    // Read raw bytes so pdfjs worker never needs to fetch a blob URL
+    const reader = new FileReader();
+    reader.onload = () => {
+      pdfBytesRef.current = reader.result as ArrayBuffer;
+      setPdfFile(file);
+      setPdfUrl('loaded'); // non-null sentinel to trigger render effects
+      setEditorState(createEditorState());
+      setHistory([]); setFuture([]);
+      setSelectedId(null); setSaveState('idle'); setSaveResult(null); setLoadError(null);
+      setCurrentPage(1); setPageInfos([]);
+    };
+    reader.onerror = () => setLoadError('Failed to read PDF file.');
+    reader.readAsArrayBuffer(file.file);
   }, [revokePdfUrl]);
 
   // ─── Render page ──────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!pdfUrl || !canvasRef.current) return;
+    if (!pdfUrl || !canvasRef.current || !pdfBytesRef.current) return;
     setRendering(true); setLoadError(null);
     const canvas = canvasRef.current;
-    renderPageToCanvas(pdfUrl, currentPage, canvas)
+    const data = pdfBytesRef.current;
+    renderPageToCanvas(data, currentPage, canvas)
       .then(({ widthPt, heightPt, scale }) => {
         setPageScale(scale);
         setPageDims({ widthPt, heightPt });
@@ -470,9 +477,13 @@ export default function EditPdfPage() {
 
   // Load all page infos on first render
   useEffect(() => {
-    if (!pdfUrl || pageInfos.length > 0) return;
+    if (!pdfUrl || pageInfos.length > 0 || !pdfBytesRef.current) return;
+    const data = pdfBytesRef.current;
     import('pdfjs-dist').then(async (pdfjs) => {
-      const doc = await pdfjs.getDocument({ url: pdfUrl!, disableAutoFetch: true, wasmUrl: '/wasm/' }).promise;
+      if (!pdfjs.GlobalWorkerOptions.workerPort) {
+        pdfjs.GlobalWorkerOptions.workerPort = new Worker('/pdf.worker.min.mjs', { type: 'module' });
+      }
+      const doc = await pdfjs.getDocument({ data: data.slice(0), disableAutoFetch: true, wasmUrl: '/wasm/' }).promise;
       const count = doc.numPages;
       const infos: PageInfo[] = [];
       for (let i = 1; i <= count; i++) {
@@ -771,6 +782,7 @@ export default function EditPdfPage() {
 
   const handleReset = useCallback(() => {
     revokePdfUrl();
+    pdfBytesRef.current = null;
     setPdfFile(null); setPdfUrl(null); setPageInfos([]);
     setCurrentPage(1); setEditorState(createEditorState());
     setHistory([]); setFuture([]);

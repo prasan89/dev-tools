@@ -38,6 +38,7 @@ export default function OrganizePdfPage() {
   const [dragOver, setDragOver] = useState<number | null>(null);
   const dragSrcRef = useRef<number | null>(null);
   const pdfUrlRef = useRef<string | null>(null);
+  const pdfBytesRef = useRef<ArrayBuffer | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const revokePdfUrl = useCallback(() => {
@@ -63,41 +64,41 @@ export default function OrganizePdfPage() {
     setSaveResult(null);
     setSelected(new Set());
     setHistory([]);
-
-    const url = URL.createObjectURL(file.file);
-    pdfUrlRef.current = url;
     setPdfFile(file);
-    setPdfUrl(url);
     setOrgState(null);
     setPageCount(0);
 
-    // Load page count via pdf-lib (lightweight)
-    import('pdf-lib').then(async ({ PDFDocument }) => {
-      try {
-        const buf = await new Promise<ArrayBuffer>((res, rej) => {
-          const r = new FileReader();
-          r.onload = () => res(r.result as ArrayBuffer);
-          r.onerror = () => rej(new Error('read failed'));
-          r.readAsArrayBuffer(file.file);
-        });
-        const doc = await PDFDocument.load(buf, { ignoreEncryption: false });
-        const count = doc.getPageCount();
-        setPageCount(count);
-        setOrgState(buildInitialState(count));
-      } catch (err: unknown) {
-        const msg = String(err);
-        if (msg.includes('encrypted') || msg.includes('password')) {
-          setLoadError('This PDF is password protected and cannot be organized.');
-        } else {
-          setLoadError('This PDF appears to be corrupted or is not a valid PDF.');
+    // Read raw bytes once — reused by PageThumbnail (pdfjs) and pdf-lib
+    const reader = new FileReader();
+    reader.onload = () => {
+      const buf = reader.result as ArrayBuffer;
+      pdfBytesRef.current = buf;
+      setPdfUrl('loaded');
+
+      import('pdf-lib').then(async ({ PDFDocument }) => {
+        try {
+          const doc = await PDFDocument.load(buf.slice(0), { ignoreEncryption: false });
+          const count = doc.getPageCount();
+          setPageCount(count);
+          setOrgState(buildInitialState(count));
+        } catch (err: unknown) {
+          const msg = String(err);
+          if (msg.includes('encrypted') || msg.includes('password')) {
+            setLoadError('This PDF is password protected and cannot be organized.');
+          } else {
+            setLoadError('This PDF appears to be corrupted or is not a valid PDF.');
+          }
         }
-      }
-    });
+      });
+    };
+    reader.onerror = () => setLoadError('Failed to read PDF file.');
+    reader.readAsArrayBuffer(file.file);
   }, [revokePdfUrl]);
 
   const handleStartOver = useCallback(() => {
     abortRef.current?.abort();
     revokePdfUrl();
+    pdfBytesRef.current = null;
     setPdfFile(null);
     setPdfUrl(null);
     setPageCount(0);
@@ -465,7 +466,8 @@ export default function OrganizePdfPage() {
                 </div>
 
                 <PageThumbnail
-                  pdfUrl={pdfUrl!}
+                  pdfData={pdfBytesRef.current!}
+                  cacheKey={pdfFile!.id}
                   pageNumber={page.originalIndex + 1}
                   rotation={page.rotation}
                   selected={selected.has(listIndex)}

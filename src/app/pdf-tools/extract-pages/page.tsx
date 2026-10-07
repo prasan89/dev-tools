@@ -20,6 +20,7 @@ export default function ExtractPagesPage() {
   const [pdfFile, setPdfFile] = useState<PdfFile | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const pdfUrlRef = useRef<string | null>(null);
+  const pdfBytesRef = useRef<ArrayBuffer | null>(null);
   const [pageCount, setPageCount] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -54,37 +55,37 @@ export default function ExtractPagesPage() {
     setSelected(new Set());
     setRangeInput('');
     setRangeError(null);
-
-    const url = URL.createObjectURL(file.file);
-    pdfUrlRef.current = url;
     setPdfFile(file);
-    setPdfUrl(url);
     setPageCount(0);
 
-    import('pdf-lib').then(async ({ PDFDocument }) => {
-      try {
-        const buf = await new Promise<ArrayBuffer>((res, rej) => {
-          const r = new FileReader();
-          r.onload = () => res(r.result as ArrayBuffer);
-          r.onerror = () => rej(new Error('read failed'));
-          r.readAsArrayBuffer(file.file);
-        });
-        const doc = await PDFDocument.load(buf, { ignoreEncryption: false });
-        setPageCount(doc.getPageCount());
-      } catch (err: unknown) {
-        const msg = String(err);
-        if (msg.includes('encrypted') || msg.includes('password')) {
-          setLoadError('This PDF is password protected and cannot be processed.');
-        } else {
-          setLoadError('This PDF appears to be corrupted or is not a valid PDF.');
+    const reader = new FileReader();
+    reader.onload = () => {
+      const buf = reader.result as ArrayBuffer;
+      pdfBytesRef.current = buf;
+      setPdfUrl('loaded');
+
+      import('pdf-lib').then(async ({ PDFDocument }) => {
+        try {
+          const doc = await PDFDocument.load(buf.slice(0), { ignoreEncryption: false });
+          setPageCount(doc.getPageCount());
+        } catch (err: unknown) {
+          const msg = String(err);
+          if (msg.includes('encrypted') || msg.includes('password')) {
+            setLoadError('This PDF is password protected and cannot be processed.');
+          } else {
+            setLoadError('This PDF appears to be corrupted or is not a valid PDF.');
+          }
         }
-      }
-    });
+      });
+    };
+    reader.onerror = () => setLoadError('Failed to read PDF file.');
+    reader.readAsArrayBuffer(file.file);
   }, [revokePdfUrl]);
 
   const handleStartOver = useCallback(() => {
     abortRef.current?.abort();
     revokePdfUrl();
+    pdfBytesRef.current = null;
     setPdfFile(null);
     setPdfUrl(null);
     setPageCount(0);
@@ -326,7 +327,8 @@ export default function ExtractPagesPage() {
                 {Array.from({ length: pageCount }, (_, i) => i + 1).map((pageNum) => (
                   <PageThumbnail
                     key={pageNum}
-                    pdfUrl={pdfUrl!}
+                    pdfData={pdfBytesRef.current!}
+                    cacheKey={pdfFile!.id}
                     pageNumber={pageNum}
                     rotation={0}
                     selected={selected.has(pageNum)}

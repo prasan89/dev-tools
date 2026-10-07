@@ -34,7 +34,7 @@ const PREVIEW_MAX_W = 700;
 const PREVIEW_MAX_H = 800;
 
 async function renderPageToCanvas(
-  pdfUrl: string,
+  pdfData: ArrayBuffer,
   pageNumber: number,
   canvas: HTMLCanvasElement,
 ): Promise<{ width: number; height: number; rotation: number; scale: number }> {
@@ -42,7 +42,7 @@ async function renderPageToCanvas(
   if (!pdfjs.GlobalWorkerOptions.workerPort) {
     pdfjs.GlobalWorkerOptions.workerPort = new Worker('/pdf.worker.min.mjs', { type: 'module' });
   }
-  const task = pdfjs.getDocument({ url: pdfUrl, disableAutoFetch: true, wasmUrl: '/wasm/' });
+  const task = pdfjs.getDocument({ data: pdfData.slice(0), disableAutoFetch: true, wasmUrl: '/wasm/' });
   const doc = await task.promise;
   const page = await doc.getPage(pageNumber);
   const rotation = page.rotate;
@@ -86,6 +86,7 @@ export default function CropPdfPage() {
   const [pdfFile, setPdfFile] = useState<PdfFile | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const pdfUrlRef = useRef<string | null>(null);
+  const pdfBytesRef = useRef<ArrayBuffer | null>(null);
 
   // Page info
   const [pageCount, setPageCount] = useState(0);
@@ -139,44 +140,44 @@ export default function CropPdfPage() {
     setCropPx(null);
     setCanvasSize(null);
 
-    const url = URL.createObjectURL(file.file);
-    pdfUrlRef.current = url;
-    setPdfFile(file);
-    setPdfUrl(url);
+    // Read raw bytes once — reused by both pdfjs (rendering) and pdf-lib (page count)
+    const reader = new FileReader();
+    reader.onload = () => {
+      const buf = reader.result as ArrayBuffer;
+      pdfBytesRef.current = buf;
+      setPdfFile(file);
+      setPdfUrl('loaded');
 
-    // Get page count
-    import('pdf-lib').then(async ({ PDFDocument }) => {
-      try {
-        const buf = await new Promise<ArrayBuffer>((res, rej) => {
-          const r = new FileReader();
-          r.onload = () => res(r.result as ArrayBuffer);
-          r.onerror = () => rej(new Error('read failed'));
-          r.readAsArrayBuffer(file.file);
-        });
-        const doc = await PDFDocument.load(buf, { ignoreEncryption: false });
-        setPageCount(doc.getPageCount());
-      } catch (err: unknown) {
-        const msg = String(err);
-        if (msg.includes('encrypted') || msg.includes('password')) {
-          setLoadError('This PDF is password protected and cannot be cropped.');
-        } else {
-          setLoadError('This PDF appears to be corrupted or is not a valid PDF.');
+      import('pdf-lib').then(async ({ PDFDocument }) => {
+        try {
+          const doc = await PDFDocument.load(buf.slice(0), { ignoreEncryption: false });
+          setPageCount(doc.getPageCount());
+        } catch (err: unknown) {
+          const msg = String(err);
+          if (msg.includes('encrypted') || msg.includes('password')) {
+            setLoadError('This PDF is password protected and cannot be cropped.');
+          } else {
+            setLoadError('This PDF appears to be corrupted or is not a valid PDF.');
+          }
         }
-      }
-    });
+      });
+    };
+    reader.onerror = () => setLoadError('Failed to read PDF file.');
+    reader.readAsArrayBuffer(file.file);
   }, [revokePdfUrl]);
 
   // ─── Page render ────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!pdfUrl || !pageCount) return;
+    if (!pdfUrl || !pageCount || !pdfBytesRef.current) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     setRenderLoading(true);
     let cancelled = false;
+    const data = pdfBytesRef.current;
 
-    renderPageToCanvas(pdfUrl, currentPage, canvas).then(({ width, height, rotation, scale }) => {
+    renderPageToCanvas(data, currentPage, canvas).then(({ width, height, rotation, scale }) => {
       if (cancelled) return;
       setPageInfoMap((prev) => {
         const next = new Map(prev);

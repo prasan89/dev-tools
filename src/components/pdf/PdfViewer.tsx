@@ -96,15 +96,20 @@ export function PdfViewer({
         const pdfjs = await loadPdfjs();
         if (cancelled) return;
 
-        const url = URL.createObjectURL(pdfFile.file);
-        objectUrlRef.current = url;
+        // Read raw bytes so the worker never needs to fetch a blob URL (avoids CSP issues)
+        const buf = await new Promise<ArrayBuffer>((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(r.result as ArrayBuffer);
+          r.onerror = () => rej(new Error('read failed'));
+          r.readAsArrayBuffer(pdfFile.file);
+        });
+        if (cancelled) return;
 
-        const loadingTask = pdfjs.getDocument({ url, disableAutoFetch: true, disableStream: false, wasmUrl: '/wasm/' });
+        const loadingTask = pdfjs.getDocument({ data: buf, disableAutoFetch: true, disableStream: false, wasmUrl: '/wasm/' });
         loadingTaskRef.current = loadingTask;
         const doc = await loadingTask.promise;
         if (cancelled) {
           doc.cleanup();
-          URL.revokeObjectURL(url);
           return;
         }
 
