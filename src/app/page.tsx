@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { CategoryCard } from '@/components/ui/CategoryCard';
 import { ToolCard } from '@/components/ui/ToolCard';
+import { DatasetCard } from '@/components/datasets/DatasetCard';
 import { getCategories, getEnabledTools, getPopularTools, getToolsByCategory } from '@/lib/registry';
+import { getPopularDatasets } from '@/lib/datasets';
 import { JsonLd, websiteSchema } from '@/components/seo/JsonLd';
 
 export const metadata: Metadata = {
@@ -16,6 +19,7 @@ export default function HomePage() {
   const popularTools = getPopularTools();
   const allTools = getEnabledTools();
   const categories = getCategories();
+  const popularDatasets = getPopularDatasets(6);
 
   return (
     <>
@@ -73,6 +77,21 @@ export default function HomePage() {
             {popularTools.map((tool) => (
               <ToolCard key={tool.slug} tool={tool} />
             ))}
+          </div>
+        </section>
+
+        {/* Popular Datasets */}
+        <section aria-labelledby="datasets-heading">
+          <div className="flex items-center justify-between mb-4">
+            <h2 id="datasets-heading" className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              Free JSON Datasets
+            </h2>
+            <Link href="/datasets" className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
+              View all →
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+            {popularDatasets.map(d => <DatasetCard key={d.slug} dataset={d} />)}
           </div>
         </section>
 
