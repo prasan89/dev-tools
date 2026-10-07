@@ -6,6 +6,8 @@ export type ToolCategoryId =
   | 'json'
   | 'encoding'
   | 'developer'
+  | 'developer-utilities'
+  | 'date-time'
   | 'data-code'
   | 'utilities';
 
