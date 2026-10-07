@@ -7,6 +7,7 @@ import { Providers } from '@/components/layout/Providers';
 import { GoogleAnalytics } from '@/components/analytics/GoogleAnalytics';
 import { AdSenseScript } from '@/components/ads/AdSenseScript';
 import { SITE_URL, SITE_NAME, siteUrl } from '@/lib/seo/site-config';
+import { ServiceWorkerRegistration } from '@/components/pwa/ServiceWorkerRegistration';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -47,6 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen flex flex-col font-sans bg-[#FAF9F6] dark:bg-gray-950 text-gray-900 dark:text-gray-100 antialiased">
         <GoogleAnalytics />
         <AdSenseScript />
+        <ServiceWorkerRegistration />
         <Providers>
           <Header />
           <div className="flex-1">{children}</div>
