@@ -110,6 +110,18 @@ const UPCOMING_TOOLS = [
     href: '/pdf-tools/pdf-metadata',
     available: true,
   },
+  {
+    title: 'Password Protect PDF',
+    description: 'Add a password to your PDF to prevent unauthorized access. 100% browser-based.',
+    href: '/pdf-tools/protect-pdf',
+    available: true,
+  },
+  {
+    title: 'Unlock PDF',
+    description: 'Remove the password from a PDF you own. Enter your password and export a decrypted copy.',
+    href: '/pdf-tools/unlock-pdf',
+    available: true,
+  },
 ];
 
 export default function PdfToolsPage() {
