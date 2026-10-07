@@ -98,6 +98,12 @@ const UPCOMING_TOOLS = [
     href: '/pdf-tools/watermark-pdf',
     available: true,
   },
+  {
+    title: 'Add Page Numbers',
+    description: 'Add customizable page numbers to any PDF — choose format, position, font, and page selection.',
+    href: '/pdf-tools/page-numbers',
+    available: true,
+  },
 ];
 
 export default function PdfToolsPage() {
