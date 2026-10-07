@@ -7,8 +7,7 @@ import { DatasetCard } from '@/components/datasets/DatasetCard';
 import { DatasetCategoryBadge } from '@/components/datasets/DatasetCategoryBadge';
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
 import { JsonLd, breadcrumbSchema } from '@/components/seo/JsonLd';
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://devtoolshub-lenl7h57yq-uc.a.run.app';
+import { siteUrl } from '@/lib/seo/site-config';
 
 interface DatasetPageProps {
   params: Promise<{ slug: string }>;
@@ -23,21 +22,19 @@ export async function generateMetadata({ params }: DatasetPageProps): Promise<Me
   const dataset = getDatasetBySlug(slug);
   if (!dataset) return { title: 'Dataset Not Found' };
 
-  const canonical = `/datasets/${dataset.slug}`;
-
   return {
-    title: dataset.seoTitle,
+    title: { absolute: dataset.seoTitle },
     description: dataset.seoDescription,
-    alternates: { canonical },
+    alternates: { canonical: siteUrl(`/datasets/${dataset.slug}`) },
     openGraph: {
-      title: `${dataset.seoTitle} — DevToolsHub`,
+      title: dataset.seoTitle,
       description: dataset.seoDescription,
-      url: canonical,
+      url: siteUrl(`/datasets/${dataset.slug}`),
       type: 'website',
     },
     twitter: {
       card: 'summary_large_image',
-      title: `${dataset.seoTitle} — DevToolsHub`,
+      title: dataset.seoTitle,
       description: dataset.seoDescription,
     },
     keywords: dataset.tags,
@@ -79,9 +76,9 @@ export default async function DatasetDetailPage({ params }: DatasetPageProps) {
   return (
     <>
       <JsonLd data={breadcrumbSchema([
-        { name: 'Home', url: SITE_URL },
-        { name: 'Datasets', url: `${SITE_URL}/datasets` },
-        { name: dataset.name, url: `${SITE_URL}/datasets/${slug}` },
+        { name: 'Home', url: siteUrl() },
+        { name: 'Datasets', url: siteUrl('/datasets') },
+        { name: dataset.name, url: siteUrl(`/datasets/${slug}`) },
       ])} />
 
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-8">

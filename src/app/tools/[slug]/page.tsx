@@ -5,6 +5,7 @@ import { ToolLayout } from '@/components/tools/ToolLayout';
 import { ToolWorkspace } from '@/components/tools/ToolWorkspace';
 import { ToolErrorBoundary } from '@/components/tools/ToolErrorBoundary';
 import { JsonLd, webApplicationSchema, breadcrumbSchema } from '@/components/seo/JsonLd';
+import { siteUrl } from '@/lib/seo/site-config';
 
 interface ToolPageProps {
   params: Promise<{ slug: string }>;
@@ -21,21 +22,20 @@ export async function generateMetadata({ params }: ToolPageProps): Promise<Metad
   if (!tool || !tool.enabled) return { title: 'Tool Not Found' };
 
   const category = getCategoryById(tool.category);
-  const canonical = `/tools/${slug}`;
 
   return {
-    title: tool.seoTitle,
+    title: { absolute: tool.seoTitle },
     description: tool.seoDescription,
-    alternates: { canonical },
+    alternates: { canonical: siteUrl(`/tools/${slug}`) },
     openGraph: {
-      title: `${tool.seoTitle} — DevToolsHub`,
+      title: tool.seoTitle,
       description: tool.seoDescription,
-      url: canonical,
+      url: siteUrl(`/tools/${slug}`),
       type: 'website',
     },
     twitter: {
       card: 'summary_large_image',
-      title: `${tool.seoTitle} — DevToolsHub`,
+      title: tool.seoTitle,
       description: tool.seoDescription,
     },
     keywords: tool.keywords,
@@ -53,15 +53,14 @@ export default async function ToolPage({ params }: ToolPageProps) {
   if (!tool || !tool.enabled) notFound();
 
   const category = getCategoryById(tool.category);
-  const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://devtoolshub-lenl7h57yq-uc.a.run.app';
 
   return (
     <ToolLayout tool={tool}>
       <JsonLd data={webApplicationSchema(tool)} />
       <JsonLd data={breadcrumbSchema([
-        { name: 'Home', url: SITE_URL },
-        ...(category ? [{ name: category.name, url: `${SITE_URL}/tools/category/${category.slug}` }] : []),
-        { name: tool.name, url: `${SITE_URL}/tools/${slug}` },
+        { name: 'Home', url: siteUrl() },
+        ...(category ? [{ name: category.name, url: siteUrl(`/tools/category/${category.slug}`) }] : []),
+        { name: tool.name, url: siteUrl(`/tools/${slug}`) },
       ])} />
       <ToolErrorBoundary toolName={tool.name}>
         <ToolWorkspace tool={tool} />

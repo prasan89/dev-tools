@@ -21,10 +21,16 @@ export interface Category {
   id: ToolCategoryId;
   name: string;
   description: string;
+  /** Extended 2-3 sentence description rendered in the SEO content block */
+  longDescription?: string;
   icon: string;
   color: string;
   /** URL slug for the category page: /tools/[slug] */
   slug: string;
+  /** SEO page title override */
+  seoTitle?: string;
+  /** SEO meta description override */
+  seoDescription?: string;
 }
 
 // ---------------------------------------------------------------------------

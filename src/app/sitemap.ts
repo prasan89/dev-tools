@@ -1,8 +1,7 @@
 import { MetadataRoute } from 'next';
 import { getEnabledTools, getCategories } from '@/lib/registry';
 import { getDatasets } from '@/lib/datasets';
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://devtoolshub.dev';
+import { SITE_URL } from '@/lib/seo/site-config';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const tools = getEnabledTools();

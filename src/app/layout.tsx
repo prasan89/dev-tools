@@ -6,6 +6,7 @@ import { Footer } from '@/components/layout/Footer';
 import { Providers } from '@/components/layout/Providers';
 import { GoogleAnalytics } from '@/components/analytics/GoogleAnalytics';
 import { AdSenseScript } from '@/components/ads/AdSenseScript';
+import { SITE_URL, SITE_NAME, siteUrl } from '@/lib/seo/site-config';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -15,16 +16,28 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: 'DevToolsHub — Developer Tools That Just Work',
-    template: '%s — DevToolsHub',
+    default: 'DevToolsHub — Free Online Developer Tools',
+    template: `%s | ${SITE_NAME}`,
   },
   description:
-    'Fast, free, privacy-friendly tools for developers. JSON formatter, Base64 encoder, regex tester, UUID generator, and more.',
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://devtoolshub.dev'),
+    'Free online developer tools for JSON, encoding, Base64, URL, date & time, regex, SQL, XML, YAML, text processing and more. All tools run in your browser — no data sent to servers.',
+  keywords: [
+    'developer tools',
+    'online tools',
+    'json formatter',
+    'base64 encoder',
+    'url encoder',
+    'regex tester',
+    'sql formatter',
+    'timestamp converter',
+    'json validator',
+  ],
+  metadataBase: new URL(SITE_URL),
   robots: { index: true, follow: true },
   openGraph: {
-    siteName: 'DevToolsHub',
+    siteName: SITE_NAME,
     type: 'website',
+    url: siteUrl('/'),
   },
 };
 

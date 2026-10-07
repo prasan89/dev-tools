@@ -2,11 +2,10 @@ import type { Metadata } from 'next';
 import { getDatasets, getCategories } from '@/lib/datasets';
 import { DatasetSearch } from '@/components/datasets/DatasetSearch';
 import { JsonLd } from '@/components/seo/JsonLd';
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://devtoolshub-lenl7h57yq-uc.a.run.app';
+import { siteUrl } from '@/lib/seo/site-config';
 
 export const metadata: Metadata = {
-  title: 'Free JSON Datasets – Download JSON Data | DevToolsHub',
+  title: { absolute: 'Free JSON Datasets – Download JSON Data | DevToolsHub' },
   description:
     'Free JSON datasets for testing, development, learning, API prototypes and application development. 100+ datasets across 13 categories.',
   alternates: { canonical: '/datasets' },
@@ -25,7 +24,7 @@ function datasetCollectionSchema(count: number) {
     '@type': 'DataCatalog',
     name: 'DevToolsHub JSON Datasets',
     description: 'Free JSON datasets for testing, development, and API prototyping.',
-    url: `${SITE_URL}/datasets`,
+    url: siteUrl('/datasets'),
     numberOfItems: count,
     license: 'https://creativecommons.org/publicdomain/zero/1.0/',
   };

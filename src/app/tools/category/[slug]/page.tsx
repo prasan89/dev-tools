@@ -11,6 +11,7 @@ import { ToolCard } from '@/components/ui/ToolCard';
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
 import { cn } from '@/lib/utils';
 import { JsonLd, breadcrumbSchema } from '@/components/seo/JsonLd';
+import { siteUrl } from '@/lib/seo/site-config';
 
 interface CategoryPageProps {
   params: Promise<{ slug: string }>;
@@ -25,13 +26,18 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
   const category = getCategoryBySlug(slug);
   if (!category) return { title: 'Category Not Found' };
 
+  const title = category.seoTitle ?? `${category.name} — DevToolsHub`;
+  const description =
+    category.seoDescription ??
+    `Free online ${category.name.toLowerCase()}. ${category.description}`;
+
   return {
-    title: `${category.name} — DevToolsHub`,
-    description: `Free online ${category.name.toLowerCase()}. ${category.description}`,
+    title: { absolute: title },
+    description,
     alternates: { canonical: `/tools/category/${slug}` },
     openGraph: {
-      title: `${category.name} — DevToolsHub`,
-      description: category.description,
+      title,
+      description,
     },
   };
 }
@@ -44,13 +50,12 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
   const tools = getToolsByCategory(category.id);
   const allCategories = getCategories().filter((c) => c.id !== category.id);
   const colors = getCategoryColors(category.color);
-  const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://devtoolshub-lenl7h57yq-uc.a.run.app';
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-8">
       <JsonLd data={breadcrumbSchema([
-        { name: 'Home', url: SITE_URL },
-        { name: category.name, url: `${SITE_URL}/tools/category/${slug}` },
+        { name: 'Home', url: siteUrl() },
+        { name: category.name, url: siteUrl(`/tools/category/${slug}`) },
       ])} />
       <Breadcrumbs
         items={[
@@ -107,6 +112,18 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
         <p className="text-sm text-gray-500 dark:text-gray-400">
           No tools available in this category yet.
         </p>
+      )}
+
+      {/* SEO content — below the tools grid */}
+      {(category.longDescription || category.description) && (
+        <section className="mt-12 prose prose-sm max-w-none dark:prose-invert">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+            About {category.name}
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">
+            {category.longDescription || category.description}
+          </p>
+        </section>
       )}
 
       {/* Related categories */}

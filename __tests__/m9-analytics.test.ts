@@ -26,19 +26,28 @@ function fileExists(relPath: string) {
 // ---------------------------------------------------------------------------
 
 describe('Environment config', () => {
-  it('layout.tsx uses NEXT_PUBLIC_SITE_URL env var for metadataBase', () => {
+  // M18: NEXT_PUBLIC_SITE_URL is centralized in src/lib/seo/site-config.ts.
+  // Individual files import SITE_URL / siteUrl from there rather than
+  // reading the env var directly — so we check the central config file and
+  // that the app files import from it.
+  it('site-config.ts defines NEXT_PUBLIC_SITE_URL as single source of truth', () => {
+    const src = readSrc('lib/seo/site-config.ts');
+    expect(src).toContain('NEXT_PUBLIC_SITE_URL');
+  });
+
+  it('layout.tsx imports from site-config (centralized SITE_URL)', () => {
     const src = readApp('layout.tsx');
-    expect(src).toContain('NEXT_PUBLIC_SITE_URL');
+    expect(src).toContain('site-config');
   });
 
-  it('sitemap.ts uses NEXT_PUBLIC_SITE_URL', () => {
+  it('sitemap.ts imports from site-config (centralized SITE_URL)', () => {
     const src = readApp('sitemap.ts');
-    expect(src).toContain('NEXT_PUBLIC_SITE_URL');
+    expect(src).toContain('site-config');
   });
 
-  it('robots.ts uses NEXT_PUBLIC_SITE_URL', () => {
+  it('robots.ts imports from site-config (centralized SITE_URL)', () => {
     const src = readApp('robots.ts');
-    expect(src).toContain('NEXT_PUBLIC_SITE_URL');
+    expect(src).toContain('site-config');
   });
 
   it('NEXT_PUBLIC_GA_MEASUREMENT_ID referenced in analytics', () => {
