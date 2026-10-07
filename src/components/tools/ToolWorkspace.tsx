@@ -1,27 +1,22 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { ToolDefinition, ToolInput as ToolInputType, ToolResult, ToolOptionControl, ToolProcessor } from '@/types/tool';
 import { getProcessor } from '@/lib/processors/index';
-import { ToolInput } from '@/components/ui/ToolInput';
-import { ToolOutput } from '@/components/ui/ToolOutput';
 import { CopyButton } from '@/components/ui/CopyButton';
-import { ClearButton } from '@/components/ui/ClearButton';
 import { DownloadButton } from '@/components/ui/DownloadButton';
 import { PrivacyNotice } from '@/components/ui/PrivacyNotice';
 import { trackEvent } from '@/lib/analytics';
+import { cn } from '@/lib/utils';
 
 interface ToolWorkspaceProps {
   tool: ToolDefinition;
 }
 
-// Build initial options object from optionControls defaults
 function buildDefaultOptions(controls: ToolOptionControl[] | undefined): Record<string, unknown> {
   if (!controls) return {};
   const opts: Record<string, unknown> = {};
-  for (const c of controls) {
-    opts[c.key] = c.defaultValue;
-  }
+  for (const c of controls) opts[c.key] = c.defaultValue;
   return opts;
 }
 
@@ -33,22 +28,20 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
   const [hasTrackedUse, setHasTrackedUse] = useState(false);
   const [processor, setProcessor] = useState<ToolProcessor | undefined>(undefined);
   const [processorLoading, setProcessorLoading] = useState(true);
+  const [options, setOptions] = useState<Record<string, unknown>>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
     getProcessor(tool.id).then((p) => {
       if (!cancelled) {
         setProcessor(p);
-        if (p?.optionControls) {
-          setOptions(buildDefaultOptions(p.optionControls));
-        }
+        if (p?.optionControls) setOptions(buildDefaultOptions(p.optionControls));
         setProcessorLoading(false);
       }
     });
     return () => { cancelled = true; };
   }, [tool.id]);
-
-  const [options, setOptions] = useState<Record<string, unknown>>({});
 
   const runProcessor = useCallback(
     (inputValue: string, secondaryValue?: string, opts?: Record<string, unknown>) => {
@@ -59,13 +52,8 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
         setResult(r);
         if (!r.error) {
           trackEvent('tool_executed', { tool: tool.id });
-          // Fire tool_used once per page load on first successful execution
           if (!hasTrackedUse) {
-            trackEvent('tool_used', {
-              tool_slug: tool.id,
-              tool_name: tool.name,
-              category: tool.category,
-            });
+            trackEvent('tool_used', { tool_slug: tool.id, tool_name: tool.name, category: tool.category });
             setHasTrackedUse(true);
           }
         } else {
@@ -97,9 +85,7 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
   const handleSecondaryChange = useCallback(
     (value: string) => {
       setSecondaryInput(value);
-      if (processor?.autoProcess !== false && input) {
-        runProcessor(input, value, options);
-      }
+      if (processor?.autoProcess !== false && input) runProcessor(input, value, options);
     },
     [processor, runProcessor, input, options]
   );
@@ -108,10 +94,7 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
     (key: string, value: unknown) => {
       const newOpts = { ...options, [key]: value };
       setOptions(newOpts);
-      // Re-run if autoProcess and there is input
-      if (processor?.autoProcess !== false && input) {
-        runProcessor(input, secondaryInput, newOpts);
-      }
+      if (processor?.autoProcess !== false && input) runProcessor(input, secondaryInput, newOpts);
     },
     [options, processor, input, secondaryInput, runProcessor]
   );
@@ -137,11 +120,23 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
     }
   };
 
+  const handleUpload = () => fileInputRef.current?.click();
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      handleInputChange(text);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   const outputValue = result?.output?.value ?? '';
   const hasOutput = !!outputValue && !result?.error;
-  const showActions = !!processor;
 
-  // No processor = coming-soon state
   if (processorLoading) {
     return (
       <>
@@ -151,92 +146,125 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
     );
   }
 
-  // No processor = coming-soon state
-  if (!processor) {
-    return <ComingSoon tool={tool} />;
-  }
+  if (!processor) return <ComingSoon tool={tool} />;
 
   return (
     <div className="space-y-4">
       {tool.privacySensitive && <PrivacyNotice />}
 
-      {/* Option controls (checkboxes, selects) declared by processor */}
+      {/* Option controls */}
       {processor.optionControls && processor.optionControls.length > 0 && (
-        <OptionControls
-          controls={processor.optionControls}
-          values={options}
-          onChange={handleOptionChange}
-        />
+        <OptionControls controls={processor.optionControls} values={options} onChange={handleOptionChange} />
       )}
 
-      {/* Input — single or side-by-side (dual) layout */}
-      {processor.hasSecondaryInput ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <ToolInput
+      {/* Two-panel workspace */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* INPUT panel */}
+        <div className="rounded-2xl border border-[#E5E2DC] bg-white shadow-sm overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-[#E5E2DC]">
+            <span className="text-[11px] font-semibold tracking-widest uppercase text-gray-500">
+              {processor.hasSecondaryInput ? (processor.inputLabel ?? 'Input') : 'Input'}
+            </span>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleUpload}
+                className="inline-flex items-center gap-1.5 text-[13px] text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Upload
+              </button>
+              <input ref={fileInputRef} type="file" accept="text/*,.json,.xml,.yaml,.yml,.csv,.txt,.md" className="sr-only" onChange={handleFileChange} />
+              {processor.exampleInput && (
+                <button
+                  type="button"
+                  onClick={handleLoadExample}
+                  className="text-[13px] text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  Load sample
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleClear}
+                disabled={!input && !secondaryInput}
+                className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          <WorkspaceTextarea
             value={input}
             onChange={handleInputChange}
-            placeholder={processor.inputPlaceholder ?? 'Paste JSON here…'}
-            label={processor.inputLabel ?? 'Input A'}
-            rows={12}
-          />
-          <ToolInput
-            value={secondaryInput}
-            onChange={handleSecondaryChange}
-            label={processor.secondaryInputLabel ?? 'Input B'}
-            rows={12}
+            placeholder={processor.inputPlaceholder ?? 'Paste your input here…'}
+            label={processor.inputLabel ?? 'Input'}
           />
         </div>
-      ) : (
-        <ToolInput
-          value={input}
-          onChange={handleInputChange}
-          placeholder={processor.inputPlaceholder ?? `Paste your input here…`}
-          label={processor.inputLabel ?? 'Input'}
-          rows={10}
-        />
-      )}
 
-      {/* Action bar */}
-      {showActions && (
-        <div className="flex flex-wrap items-center gap-2">
-          <ClearButton onClick={handleClear} disabled={!input && !secondaryInput} />
-          {processor.exampleInput && (
-            <button
-              type="button"
-              onClick={handleLoadExample}
-              className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-              Load Example
-            </button>
-          )}
-          {hasOutput && (
-            <>
-              <CopyButton
-                text={outputValue}
-                onCopy={() => trackEvent('tool_copied', { tool: tool.id })}
-              />
-              {result?.output?.downloadFilename && (
+        {/* OUTPUT panel */}
+        <div className="rounded-2xl border border-[#E5E2DC] bg-white shadow-sm overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-[#E5E2DC]">
+            <span className="text-[11px] font-semibold tracking-widest uppercase text-gray-500">
+              Output
+            </span>
+            <div className="flex items-center gap-2">
+              {result?.output?.downloadFilename && hasOutput && (
                 <DownloadButton
                   content={outputValue}
                   filename={result.output.downloadFilename}
                   mimeType={result.output.downloadMime}
                   onDownload={() => trackEvent('tool_downloaded', { tool: tool.id })}
+                  variant="ghost"
                 />
               )}
-            </>
-          )}
-          {/* Manual run button for processors that don't auto-process */}
-          {processor.autoProcess === false && (
-            <button
-              type="button"
-              aria-label="Run tool"
-              onClick={() => runProcessor(input, secondaryInput, options)}
-              disabled={!input || (processor.hasSecondaryInput && !secondaryInput)}
-              className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              Run
-            </button>
-          )}
+              <CopyButton
+                text={outputValue}
+                onCopy={() => trackEvent('tool_copied', { tool: tool.id })}
+                variant="solid"
+              />
+            </div>
+          </div>
+          <OutputArea
+            value={outputValue}
+            error={result?.error}
+            hasRun={hasRun}
+            label={result?.output?.label ?? 'Output'}
+          />
+        </div>
+      </div>
+
+      {/* Secondary input (for dual-input tools like jsonpath-tester) */}
+      {processor.hasSecondaryInput && (
+        <div className="rounded-2xl border border-[#E5E2DC] bg-white shadow-sm overflow-hidden flex flex-col">
+          <div className="px-5 py-3 border-b border-[#E5E2DC]">
+            <span className="text-[11px] font-semibold tracking-widest uppercase text-gray-500">
+              {processor.secondaryInputLabel ?? 'Secondary Input'}
+            </span>
+          </div>
+          <WorkspaceTextarea
+            value={secondaryInput}
+            onChange={handleSecondaryChange}
+            placeholder="Enter secondary input…"
+            label={processor.secondaryInputLabel ?? 'Secondary Input'}
+          />
+        </div>
+      )}
+
+      {/* Manual run button */}
+      {processor.autoProcess === false && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            aria-label="Run tool"
+            onClick={() => runProcessor(input, secondaryInput, options)}
+            disabled={!input || (processor.hasSecondaryInput && !secondaryInput)}
+            className="rounded-xl bg-gray-900 px-6 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            Run
+          </button>
         </div>
       )}
 
@@ -245,7 +273,7 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
         <div
           key={i}
           role="alert"
-          className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-400"
+          className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800"
         >
           <svg className="mt-0.5 h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
@@ -254,37 +282,24 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
         </div>
       ))}
 
-      {/* Output */}
-      {(hasRun || result?.error) && (
-        <ToolOutput
-          value={outputValue}
-          label={result?.output?.label ?? 'Output'}
-          error={result?.error}
-          rows={10}
-          showCopy={false}
-        />
-      )}
-
       {/* Additional outputs */}
       {result?.additionalOutputs?.map((ao, i) => (
-        <ToolOutput
-          key={i}
-          value={ao.value}
-          label={ao.label}
-          rows={5}
-          showCopy={ao.copyable}
-        />
+        <div key={i} className="rounded-2xl border border-[#E5E2DC] bg-white shadow-sm overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-[#E5E2DC]">
+            <span className="text-[11px] font-semibold tracking-widest uppercase text-gray-500">{ao.label}</span>
+            {ao.copyable && <CopyButton text={ao.value} variant="ghost" />}
+          </div>
+          <OutputArea value={ao.value} hasRun={true} label={ao.label ?? 'Output'} />
+        </div>
       ))}
 
-      {/* Result meta (stats) */}
+      {/* Meta stats */}
       {result?.meta && Object.keys(result.meta).length > 0 && (
-        <dl className="flex flex-wrap gap-4 text-xs text-gray-500 dark:text-gray-400">
+        <dl className="flex flex-wrap gap-x-6 gap-y-2 px-1 text-xs text-gray-500">
           {Object.entries(result.meta).map(([k, v]) => (
-            <div key={k} className="flex flex-col gap-0.5">
-              <dt className="font-medium capitalize text-gray-700 dark:text-gray-300">
-                {k.replace(/_/g, ' ')}
-              </dt>
-              <dd>{v}</dd>
+            <div key={k} className="flex items-center gap-1.5">
+              <dt className="font-medium capitalize text-gray-600">{k.replace(/_/g, ' ')}</dt>
+              <dd className="text-gray-500">{String(v)}</dd>
             </div>
           ))}
         </dl>
@@ -294,7 +309,69 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Option Controls renderer
+// Workspace textarea (no outer card — the panel wraps it)
+// ---------------------------------------------------------------------------
+
+interface WorkspaceTextareaProps {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  label: string;
+}
+
+function WorkspaceTextarea({ value, onChange, placeholder, label }: WorkspaceTextareaProps) {
+  return (
+    <textarea
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      aria-label={label}
+      className={cn(
+        'flex-1 w-full min-h-[320px] resize-none px-5 py-4',
+        'font-mono text-[13px] leading-relaxed',
+        'text-gray-800 placeholder:text-gray-300',
+        'bg-transparent focus:outline-none',
+      )}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Output area
+// ---------------------------------------------------------------------------
+
+interface OutputAreaProps {
+  value: string;
+  error?: string;
+  hasRun: boolean;
+  label: string;
+}
+
+function OutputArea({ value, error, hasRun, label }: OutputAreaProps) {
+  const placeholder = hasRun ? '' : `${label} will appear here.`;
+
+  if (error) {
+    return (
+      <div
+        role="alert"
+        className="flex-1 min-h-[320px] px-5 py-4 font-mono text-[13px] leading-relaxed text-red-600 bg-red-50/50"
+      >
+        {error}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 min-h-[320px] px-5 py-4 bg-[#F5F4F0]">
+      <pre className="font-mono text-[13px] leading-relaxed text-gray-800 whitespace-pre-wrap break-words">
+        {value || <span className="text-gray-400">{placeholder}</span>}
+      </pre>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Option Controls
 // ---------------------------------------------------------------------------
 
 interface OptionControlsProps {
@@ -304,7 +381,6 @@ interface OptionControlsProps {
 }
 
 function OptionControls({ controls, values, onChange }: OptionControlsProps) {
-  // Group checkboxes with the same group label, render selects inline
   const groups = new Map<string, ToolOptionControl[]>();
   const ungrouped: ToolOptionControl[] = [];
 
@@ -319,27 +395,21 @@ function OptionControls({ controls, values, onChange }: OptionControlsProps) {
   }
 
   return (
-    <div className="flex flex-wrap items-start gap-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-3 py-2.5">
-      {/* Ungrouped controls */}
+    <div className="flex flex-wrap items-center gap-4 rounded-xl border border-[#E5E2DC] bg-white px-4 py-3">
       {ungrouped.map((c) =>
         c.type === 'select' ? (
           <div key={c.key} className="flex items-center gap-2">
-            <label
-              htmlFor={`opt-${c.key}`}
-              className="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap"
-            >
+            <label htmlFor={`opt-${c.key}`} className="text-xs font-medium text-gray-600 whitespace-nowrap">
               {c.label}
             </label>
             <select
               id={`opt-${c.key}`}
               value={String(values[c.key] ?? c.defaultValue)}
               onChange={(e) => onChange(c.key, e.target.value)}
-              className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="rounded-lg border border-[#E5E2DC] bg-white px-2.5 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
             >
               {c.options?.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
+                <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
           </div>
@@ -349,28 +419,24 @@ function OptionControls({ controls, values, onChange }: OptionControlsProps) {
               type="checkbox"
               checked={Boolean(values[c.key] ?? c.defaultValue)}
               onChange={(e) => onChange(c.key, e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-gray-300 accent-blue-600"
+              className="h-3.5 w-3.5 rounded border-gray-300 accent-gray-800"
             />
-            <span className="text-xs text-gray-700 dark:text-gray-300">{c.label}</span>
+            <span className="text-xs text-gray-600">{c.label}</span>
           </label>
         )
       )}
-
-      {/* Grouped checkboxes */}
       {Array.from(groups.entries()).map(([groupName, groupControls]) => (
         <fieldset key={groupName} className="flex items-center gap-1.5">
-          <legend className="text-xs font-medium text-gray-500 dark:text-gray-400 mr-1.5">
-            {groupName}:
-          </legend>
+          <legend className="text-xs font-medium text-gray-400 mr-1.5">{groupName}:</legend>
           {groupControls.map((c) => (
             <label key={c.key} className="flex items-center gap-1 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={Boolean(values[c.key] ?? c.defaultValue)}
                 onChange={(e) => onChange(c.key, e.target.checked)}
-                className="h-3.5 w-3.5 rounded border-gray-300 accent-blue-600"
+                className="h-3.5 w-3.5 rounded border-gray-300 accent-gray-800"
               />
-              <span className="text-xs text-gray-700 dark:text-gray-300">{c.label}</span>
+              <span className="text-xs text-gray-600">{c.label}</span>
             </label>
           ))}
         </fieldset>
@@ -380,47 +446,33 @@ function OptionControls({ controls, values, onChange }: OptionControlsProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Loading skeleton — shown while the processor chunk is being fetched
+// Loading skeleton
 // ---------------------------------------------------------------------------
 
 function ProcessorSkeleton() {
   return (
-    <div className="space-y-4 animate-pulse" aria-busy="true" aria-label="Loading tool">
-      <div className="h-8 w-32 rounded bg-gray-200 dark:bg-gray-700" />
-      <div className="h-40 rounded-lg bg-gray-200 dark:bg-gray-700" />
-      <div className="flex gap-2">
-        <div className="h-8 w-20 rounded-lg bg-gray-200 dark:bg-gray-700" />
-        <div className="h-8 w-28 rounded-lg bg-gray-200 dark:bg-gray-700" />
-      </div>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 animate-pulse" aria-busy="true" aria-label="Loading tool">
+      {[0, 1].map((i) => (
+        <div key={i} className="rounded-2xl border border-[#E5E2DC] bg-white shadow-sm h-[400px]" />
+      ))}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Coming-soon state (shown when processor is undefined after load)
+// Coming-soon state
 // ---------------------------------------------------------------------------
 
 function ComingSoon({ tool }: { tool: ToolDefinition }) {
   return (
-    <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-6">
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
       <div className="flex items-start gap-3">
-        <svg
-          className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-          />
+        <svg className="h-5 w-5 shrink-0 text-amber-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
         <div>
-          <h2 className="font-semibold text-amber-800 dark:text-amber-300">Coming Soon</h2>
-          <p className="mt-1 text-sm text-amber-700 dark:text-amber-400">
+          <h2 className="font-semibold text-amber-800">Coming Soon</h2>
+          <p className="mt-1 text-sm text-amber-700">
             <strong>{tool.name}</strong> is part of our upcoming tool suite. The interface
             and architecture is ready — the processor will be implemented shortly.
           </p>
