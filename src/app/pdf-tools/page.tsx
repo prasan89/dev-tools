@@ -27,10 +27,10 @@ const UPCOMING_TOOLS = [
     available: true,
   },
   {
-    title: 'PDF Merger',
+    title: 'Merge PDF',
     description: 'Combine multiple PDF files into one document.',
-    href: '/pdf-tools/merger',
-    available: false,
+    href: '/pdf-tools/merge-pdf',
+    available: true,
   },
   {
     title: 'PDF Splitter',

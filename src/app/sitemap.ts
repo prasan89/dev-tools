@@ -37,6 +37,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE_URL}/datasets`, lastModified: BUILD_DATE, changeFrequency: 'weekly', priority: 0.9 },
     { url: `${SITE_URL}/pdf-tools`, lastModified: BUILD_DATE, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${SITE_URL}/pdf-tools/viewer`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.7 },
+    { url: `${SITE_URL}/pdf-tools/merge-pdf`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${SITE_URL}/donate`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.5 },
     { url: `${SITE_URL}/about`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.4 },
     { url: `${SITE_URL}/contact`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.3 },
