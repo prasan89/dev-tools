@@ -4,6 +4,7 @@ import { getToolBySlug, getEnabledTools, getCategoryById } from '@/lib/registry'
 import { ToolLayout } from '@/components/tools/ToolLayout';
 import { ToolWorkspace } from '@/components/tools/ToolWorkspace';
 import { ToolErrorBoundary } from '@/components/tools/ToolErrorBoundary';
+import { JsonLd, webApplicationSchema, breadcrumbSchema } from '@/components/seo/JsonLd';
 
 interface ToolPageProps {
   params: Promise<{ slug: string }>;
@@ -51,8 +52,17 @@ export default async function ToolPage({ params }: ToolPageProps) {
   // Return 404 for unknown or disabled tools
   if (!tool || !tool.enabled) notFound();
 
+  const category = getCategoryById(tool.category);
+  const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://devtoolshub-lenl7h57yq-uc.a.run.app';
+
   return (
     <ToolLayout tool={tool}>
+      <JsonLd data={webApplicationSchema(tool)} />
+      <JsonLd data={breadcrumbSchema([
+        { name: 'Home', url: SITE_URL },
+        ...(category ? [{ name: category.name, url: `${SITE_URL}/tools/category/${category.slug}` }] : []),
+        { name: tool.name, url: `${SITE_URL}/tools/${slug}` },
+      ])} />
       <ToolErrorBoundary toolName={tool.name}>
         <ToolWorkspace tool={tool} />
       </ToolErrorBoundary>

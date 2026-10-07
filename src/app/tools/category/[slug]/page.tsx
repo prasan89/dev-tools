@@ -10,6 +10,7 @@ import {
 import { ToolCard } from '@/components/ui/ToolCard';
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
 import { cn } from '@/lib/utils';
+import { JsonLd, breadcrumbSchema } from '@/components/seo/JsonLd';
 
 interface CategoryPageProps {
   params: Promise<{ slug: string }>;
@@ -43,9 +44,14 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
   const tools = getToolsByCategory(category.id);
   const allCategories = getCategories().filter((c) => c.id !== category.id);
   const colors = getCategoryColors(category.color);
+  const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://devtoolshub-lenl7h57yq-uc.a.run.app';
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-8">
+      <JsonLd data={breadcrumbSchema([
+        { name: 'Home', url: SITE_URL },
+        { name: category.name, url: `${SITE_URL}/tools/category/${slug}` },
+      ])} />
       <Breadcrumbs
         items={[
           { label: 'Home', href: '/' },

@@ -5,8 +5,8 @@ export function Footer() {
   return (
     <footer className="mt-auto border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
-        <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
-          <div className="col-span-2 sm:col-span-1">
+        <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="col-span-2 sm:col-span-1 lg:col-span-1">
             <Link href="/" className="flex items-center gap-2 text-gray-900 dark:text-gray-100">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white text-xs font-bold">
                 DT
@@ -44,18 +44,26 @@ export function Footer() {
             <ul className="space-y-2">
               <li>
                 <Link
-                  href="/sitemap.xml"
+                  href="/about"
                   className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
                 >
-                  Sitemap
+                  About
                 </Link>
               </li>
               <li>
                 <Link
-                  href="/robots.txt"
+                  href="/contact"
                   className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
                 >
-                  Robots.txt
+                  Contact
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/sitemap.xml"
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+                >
+                  Sitemap
                 </Link>
               </li>
             </ul>
@@ -63,11 +71,26 @@ export function Footer() {
 
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-900 dark:text-gray-100 mb-3">
-              Privacy
+              Legal
             </h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              No data is sent to our servers. All tool processing happens locally in your browser.
-            </p>
+            <ul className="space-y-2">
+              <li>
+                <Link
+                  href="/privacy"
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+                >
+                  Privacy Policy
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/terms"
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+                >
+                  Terms of Service
+                </Link>
+              </li>
+            </ul>
           </div>
         </div>
 

@@ -3,6 +3,7 @@ import { SearchBar } from '@/components/ui/SearchBar';
 import { CategoryCard } from '@/components/ui/CategoryCard';
 import { ToolCard } from '@/components/ui/ToolCard';
 import { getCategories, getEnabledTools, getPopularTools, getToolsByCategory } from '@/lib/registry';
+import { JsonLd, websiteSchema } from '@/components/seo/JsonLd';
 
 export const metadata: Metadata = {
   title: 'DevToolsHub — Developer Tools That Just Work',
@@ -18,6 +19,7 @@ export default function HomePage() {
 
   return (
     <>
+      <JsonLd data={websiteSchema()} />
       {/* Hero */}
       <section className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16 text-center">

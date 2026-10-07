@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { searchTools } from '@/lib/registry';
 import { Tool } from '@/types/tool';
 import Link from 'next/link';
+import { trackEvent } from '@/lib/analytics';
 
 interface SearchBarProps {
   className?: string;
@@ -65,9 +66,21 @@ export function SearchBar({
       case 'Enter':
         e.preventDefault();
         if (activeIndex >= 0 && results[activeIndex]) {
-          router.push(`/tools/${results[activeIndex].slug}`);
+          const selected = results[activeIndex];
+          trackEvent('search_performed', {
+            result_count: results.length,
+            selected_slug: selected.slug,
+          });
+          router.push(`/tools/${selected.slug}`);
         } else if (results.length > 0) {
-          router.push(`/tools/${results[0].slug}`);
+          const first = results[0];
+          trackEvent('search_performed', {
+            result_count: results.length,
+            selected_slug: first.slug,
+          });
+          router.push(`/tools/${first.slug}`);
+        } else {
+          trackEvent('search_performed', { result_count: 0 });
         }
         setOpen(false);
         setQuery('');
@@ -147,7 +160,14 @@ export function SearchBar({
           >
             <Link
               href={`/tools/${tool.slug}`}
-              onClick={() => { setOpen(false); setQuery(''); }}
+              onClick={() => {
+                trackEvent('search_performed', {
+                  result_count: results.length,
+                  selected_slug: tool.slug,
+                });
+                setOpen(false);
+                setQuery('');
+              }}
               className={cn(
                 'flex items-center gap-3 px-4 py-2.5 transition-colors',
                 i === activeIndex

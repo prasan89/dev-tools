@@ -30,6 +30,7 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
   const [secondaryInput, setSecondaryInput] = useState('');
   const [result, setResult] = useState<ToolResult | null>(null);
   const [hasRun, setHasRun] = useState(false);
+  const [hasTrackedUse, setHasTrackedUse] = useState(false);
   const [processor, setProcessor] = useState<ToolProcessor | undefined>(undefined);
   const [processorLoading, setProcessorLoading] = useState(true);
 
@@ -58,6 +59,15 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
         setResult(r);
         if (!r.error) {
           trackEvent('tool_executed', { tool: tool.id });
+          // Fire tool_used once per page load on first successful execution
+          if (!hasTrackedUse) {
+            trackEvent('tool_used', {
+              tool_slug: tool.id,
+              tool_name: tool.name,
+              category: tool.category,
+            });
+            setHasTrackedUse(true);
+          }
         } else {
           trackEvent('tool_error', { tool: tool.id, error: r.error });
         }
@@ -68,7 +78,7 @@ export function ToolWorkspace({ tool }: ToolWorkspaceProps) {
       }
       setHasRun(true);
     },
-    [processor, tool.id]
+    [processor, tool.id, tool.name, tool.category, hasTrackedUse]
   );
 
   const handleInputChange = useCallback(

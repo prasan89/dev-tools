@@ -4,6 +4,8 @@ import './globals.css';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { Providers } from '@/components/layout/Providers';
+import { GoogleAnalytics } from '@/components/analytics/GoogleAnalytics';
+import { AdSenseScript } from '@/components/ads/AdSenseScript';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -30,6 +32,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning className={inter.variable}>
       <body className="min-h-screen flex flex-col font-sans bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 antialiased">
+        <GoogleAnalytics />
+        <AdSenseScript />
         <Providers>
           <Header />
           <div className="flex-1">{children}</div>
