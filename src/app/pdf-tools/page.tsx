@@ -87,6 +87,12 @@ const UPCOMING_TOOLS = [
     available: true,
   },
   {
+    title: 'Create PDF Form',
+    description: 'Add interactive form fields to any PDF — text boxes, checkboxes, radio buttons, and dropdowns.',
+    href: '/pdf-tools/create-pdf-form',
+    available: true,
+  },
+  {
     title: 'PDF Watermark',
     description: 'Add text or image watermarks to PDF pages.',
     href: '/pdf-tools/watermark',
