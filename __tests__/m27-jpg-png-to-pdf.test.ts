@@ -153,7 +153,7 @@ function makeJpegBytes(): Uint8Array {
 }
 
 function makePngBytes(): Uint8Array {
-  return new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  return MINIMAL_1x1_PNG;
 }
 
 async function readBlobHeader(blob: Blob): Promise<string> {

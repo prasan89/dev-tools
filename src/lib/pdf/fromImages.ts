@@ -181,8 +181,58 @@ async function normalizeImage(
   const exifOrientation = isJpeg ? readExifOrientation(bytes) : 1;
   const swapped = isSwappedOrientation(exifOrientation);
 
-  // Create object URL to load the image
-  const blob0 = new Blob([bytes as unknown as Uint8Array<ArrayBuffer>], { type: isJpeg ? 'image/jpeg' : 'image/png' });
+  // For PNGs: get dimensions first to decide whether canvas is needed
+  // We need canvas only if the image exceeds browser limits.
+  // Otherwise pass raw bytes directly to pdf-lib (avoids canvas toBlob round-trip).
+  if (!isJpeg) {
+    // Decode dimensions without canvas using an img element
+    const blob0 = new Blob([bytes as unknown as Uint8Array<ArrayBuffer>], { type: 'image/png' });
+    const url = URL.createObjectURL(blob0);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = document.createElement('img');
+        el.onload = () => resolve(el);
+        el.onerror = () => reject(new Error(`Failed to decode ${file.name}`));
+        el.src = url;
+      });
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+
+      // No downsampling needed — pass raw bytes directly
+      if (w <= MAX_CANVAS_SIDE && h <= MAX_CANVAS_SIDE && w * h <= MAX_CANVAS_AREA) {
+        return {
+          blob: new Blob([bytes as unknown as Uint8Array<ArrayBuffer>], { type: 'image/png' }),
+          width: w,
+          height: h,
+        };
+      }
+
+      // Oversized — fall through to canvas downsampling below
+      const scale = Math.min(
+        MAX_CANVAS_SIDE / Math.max(w, h),
+        Math.sqrt(MAX_CANVAS_AREA / (w * h)),
+        1,
+      );
+      const canvasW = Math.max(1, Math.floor(w * scale));
+      const canvasH = Math.max(1, Math.floor(h * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = canvasW;
+      canvas.height = canvasH;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.drawImage(img, 0, 0, canvasW, canvasH);
+      const outBlob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob((b) => resolve(b), 'image/png');
+      });
+      if (!outBlob) return null;
+      return { blob: outBlob, width: canvasW, height: canvasH };
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  // JPEG path: always go through canvas for EXIF correction + white background
+  const blob0 = new Blob([bytes as unknown as Uint8Array<ArrayBuffer>], { type: 'image/jpeg' });
   const url = URL.createObjectURL(blob0);
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -195,11 +245,9 @@ async function normalizeImage(
     const rawW = img.naturalWidth;
     const rawH = img.naturalHeight;
 
-    // After EXIF rotation, logical dimensions may be swapped
     const logicalW = swapped ? rawH : rawW;
     const logicalH = swapped ? rawW : rawH;
 
-    // Compute safe canvas dimensions (clamp to browser limits)
     let scale = 1;
     if (logicalW > MAX_CANVAS_SIDE || logicalH > MAX_CANVAS_SIDE) {
       scale = MAX_CANVAS_SIDE / Math.max(logicalW, logicalH);
@@ -217,15 +265,10 @@ async function normalizeImage(
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
-    // White background for JPEGs (prevents black on transparent PNG→JPEG)
-    if (isJpeg) {
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvasW, canvasH);
-    }
-
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvasW, canvasH);
     ctx.save();
     applyExifTransform(ctx, exifOrientation, rawW, rawH, canvasW, canvasH);
-    // When swapped, draw at scaled raw dimensions (ctx is rotated)
     if (swapped) {
       ctx.drawImage(img, 0, 0, rawH * scale, rawW * scale);
     } else {
@@ -236,8 +279,8 @@ async function normalizeImage(
     const outBlob = await new Promise<Blob | null>((resolve) => {
       canvas.toBlob(
         (b) => resolve(b),
-        isJpeg ? 'image/jpeg' : 'image/png',
-        isJpeg ? Math.max(0.01, Math.min(1, jpegQuality)) : undefined,
+        'image/jpeg',
+        Math.max(0.01, Math.min(1, jpegQuality)),
       );
     });
     if (!outBlob) return null;
