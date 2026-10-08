@@ -35,8 +35,7 @@ const TOOL_CATEGORIES: ToolCategory[] = [
   {
     label: 'Organize & Edit',
     tools: [
-      { title: 'PDF Viewer', description: 'View and navigate PDF files directly in your browser.', href: '/pdf-tools/viewer', available: true },
-      { title: 'Merge PDF', description: 'Combine multiple PDF files into one document.', href: '/pdf-tools/merge-pdf', available: true },
+{ title: 'Merge PDF', description: 'Combine multiple PDF files into one document.', href: '/pdf-tools/merge-pdf', available: true },
       { title: 'Split PDF', description: 'Extract pages, split by range, or separate every page into its own file.', href: '/pdf-tools/split-pdf', available: true },
       { title: 'Organize PDF', description: 'Rotate, delete, and reorder PDF pages. Drag and drop to rearrange.', href: '/pdf-tools/organize-pdf', available: true },
       { title: 'Crop PDF', description: 'Visually crop PDF pages to remove margins or whitespace.', href: '/pdf-tools/crop-pdf', available: true },
