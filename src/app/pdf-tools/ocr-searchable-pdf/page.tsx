@@ -5,39 +5,24 @@ import { PdfToolLayout } from '@/components/pdf/PdfToolLayout';
 import { PdfDropzone } from '@/components/pdf/PdfDropzone';
 import { PdfDownload } from '@/components/pdf/PdfDownload';
 import type { PdfFile } from '@/types/pdf';
-import { ocrPdf } from '@/lib/pdf/ocrPdf';
+import { buildOcrSearchablePdf } from '@/lib/pdf/ocrToPdf';
 
 type State = 'idle' | 'processing' | 'done' | 'error';
 
-async function buildSearchablePdf(pdfFile: PdfFile, pages: Array<{ pageIndex: number; text: string }>): Promise<Blob> {
-  const { PDFDocument, rgb, StandardFonts } = await import('pdf-lib');
-
-  const buf = await new Promise<ArrayBuffer>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as ArrayBuffer);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsArrayBuffer(pdfFile.file);
-  });
-
-  const pdfDoc = await PDFDocument.load(buf);
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-
-  for (const { pageIndex, text } of pages) {
-    if (pageIndex >= pdfDoc.getPageCount()) continue;
-    const page = pdfDoc.getPage(pageIndex);
-    // Draw invisible text layer (opacity 0 — searchable but not visible)
-    page.drawText(text.slice(0, 2000), {
-      x: 0, y: 10,
-      size: 1,
-      font,
-      color: rgb(1, 1, 1),
-      opacity: 0,
-    });
-  }
-
-  const bytes = await pdfDoc.save();
-  return new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
-}
+const LANGUAGES = [
+  { value: 'eng', label: 'English' },
+  { value: 'fra', label: 'French' },
+  { value: 'deu', label: 'German' },
+  { value: 'spa', label: 'Spanish' },
+  { value: 'ita', label: 'Italian' },
+  { value: 'por', label: 'Portuguese' },
+  { value: 'nld', label: 'Dutch' },
+  { value: 'chi_sim', label: 'Chinese (Simplified)' },
+  { value: 'jpn', label: 'Japanese' },
+  { value: 'kor', label: 'Korean' },
+  { value: 'ara', label: 'Arabic' },
+  { value: 'rus', label: 'Russian' },
+];
 
 export default function OcrSearchablePdfPage() {
   const [state, setState] = useState<State>('idle');
@@ -45,6 +30,7 @@ export default function OcrSearchablePdfPage() {
   const [downloadBlob, setDownloadBlob] = useState<Blob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filename, setFilename] = useState('');
+  const [language, setLanguage] = useState('eng');
 
   const handleFileSelected = useCallback(async (files: PdfFile[]) => {
     const f = files[0];
@@ -54,26 +40,24 @@ export default function OcrSearchablePdfPage() {
     setFilename(f.name);
     setProgress('Starting OCR…');
 
-    const ocrResult = await ocrPdf(f.file, f.pageCount ?? 1, ({ pageIndex, total }) => {
-      setProgress(`OCR: page ${pageIndex + 1} of ${total}…`);
+    const result = await buildOcrSearchablePdf(f, {
+      language,
+      pageSelection: 'all',
+      pageRange: '',
+      onProgress: (page, total) => {
+        setProgress(`OCR: page ${page + 1} of ${total}…`);
+      },
     });
 
-    if (!ocrResult.success || !ocrResult.pages) {
-      setError(ocrResult.error ?? 'OCR failed');
+    if (!result.success || !result.outputFile) {
+      setError(result.error ?? 'OCR failed');
       setState('error');
       return;
     }
 
-    setProgress('Building searchable PDF…');
-    try {
-      const blob = await buildSearchablePdf(f, ocrResult.pages);
-      setDownloadBlob(blob);
-      setState('done');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to build PDF');
-      setState('error');
-    }
-  }, []);
+    setDownloadBlob(result.outputFile.blob);
+    setState('done');
+  }, [language]);
 
   return (
     <PdfToolLayout title="OCR to Searchable PDF" description="Add a searchable text layer to scanned PDFs.">
@@ -81,7 +65,23 @@ export default function OcrSearchablePdfPage() {
         OCR accuracy depends on scan quality. Tesseract.js (~20MB) downloads on first use.
       </aside>
 
-      {state === 'idle' && <PdfDropzone onFilesSelected={handleFileSelected} multiple={false} />}
+      {state === 'idle' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 shrink-0">Language</label>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5"
+            >
+              {LANGUAGES.map((l) => (
+                <option key={l.value} value={l.value}>{l.label}</option>
+              ))}
+            </select>
+          </div>
+          <PdfDropzone onFilesSelected={handleFileSelected} multiple={false} />
+        </div>
+      )}
 
       {state === 'processing' && (
         <div className="flex flex-col items-center justify-center h-48 gap-3">

@@ -24,6 +24,8 @@ export async function buildOcrSearchablePdf(
     options.onProgress
       ? ({ pageIndex, total }) => options.onProgress!(pageIndex, total)
       : undefined,
+    2.0,
+    options.language || 'eng',
   );
 
   if (!ocrResult.success || !ocrResult.pages) {
@@ -43,18 +45,46 @@ export async function buildOcrSearchablePdf(
     const pdfDoc = await PDFDocument.load(buf);
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-    for (const { pageIndex, text } of ocrResult.pages) {
+    for (const pageResult of ocrResult.pages) {
+      const { pageIndex, words = [], imageWidth = 0, imageHeight = 0, text } = pageResult;
       if (pageIndex >= pdfDoc.getPageCount()) continue;
       const page = pdfDoc.getPage(pageIndex);
-      if (!text.trim()) continue;
-      page.drawText(text.slice(0, 2000), {
-        x: 0,
-        y: 10,
-        size: 1,
-        font,
-        color: rgb(1, 1, 1),
-        opacity: 0,
-      });
+      const { width: pageW, height: pageH } = page.getSize();
+
+      if (words.length > 0 && imageWidth > 0 && imageHeight > 0) {
+        // Scale factor from OCR image coordinates to PDF page coordinates.
+        // OCR bbox origin is top-left; PDF origin is bottom-left.
+        const scaleX = pageW / imageWidth;
+        const scaleY = pageH / imageHeight;
+
+        for (const word of words) {
+          if (!word.text.trim()) continue;
+          const pdfX = word.x0 * scaleX;
+          // Convert OCR y (top-down) to PDF y (bottom-up)
+          const wordHeightPx = word.y1 - word.y0;
+          const pdfY = pageH - word.y1 * scaleY;
+          const fontSize = Math.max(1, wordHeightPx * scaleY);
+
+          page.drawText(word.text, {
+            x: pdfX,
+            y: pdfY,
+            size: fontSize,
+            font,
+            color: rgb(1, 1, 1),
+            opacity: 0,
+          });
+        }
+      } else if (text.trim()) {
+        // Fallback: no word bboxes available — place full text invisibly at bottom
+        page.drawText(text.slice(0, 2000), {
+          x: 0,
+          y: 10,
+          size: 1,
+          font,
+          color: rgb(1, 1, 1),
+          opacity: 0,
+        });
+      }
     }
 
     const bytes = await pdfDoc.save();

@@ -67,5 +67,9 @@ export function formatFileSize(bytes: number): string {
 }
 
 export function sanitizePdfFilename(name: string): string {
-  return name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.pdf$/i, '') + '.pdf';
+  return name
+    .replace(/\.\./g, '')           // strip path traversal sequences
+    .replace(/[/\\]/g, '_')         // replace path separators
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .replace(/\.pdf$/i, '') + '.pdf';
 }

@@ -1,7 +1,19 @@
+export interface OcrWordBbox {
+  text: string;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  confidence: number;
+}
+
 export interface OcrPageResult {
   pageIndex: number;
   text: string;
   confidence: number;
+  words: OcrWordBbox[];
+  imageWidth: number;
+  imageHeight: number;
 }
 
 export interface OcrResult {
@@ -40,10 +52,11 @@ export async function ocrPdf(
   totalPages: number,
   onProgress?: OcrProgressCallback,
   scale = 2.0,
+  language = 'eng',
 ): Promise<OcrResult> {
   try {
     const { createWorker } = await import('tesseract.js');
-    const worker = await createWorker('eng');
+    const worker = await createWorker(language);
 
     const buf = await new Promise<ArrayBuffer>((resolve, reject) => {
       const reader = new FileReader();
@@ -58,10 +71,33 @@ export async function ocrPdf(
       onProgress?.({ pageIndex: i - 1, total: totalPages, status: `Processing page ${i} of ${totalPages}…` });
       const canvas = await renderPdfPageToCanvas(buf, i, scale);
       const result = await worker.recognize(canvas);
+
+      const rawWords = (result.data as unknown as {
+        words?: Array<{
+          text: string;
+          confidence: number;
+          bbox: { x0: number; y0: number; x1: number; y1: number };
+        }>;
+      }).words ?? [];
+
+      const words: OcrWordBbox[] = rawWords
+        .filter((w) => w.text.trim())
+        .map((w) => ({
+          text: w.text,
+          x0: w.bbox.x0,
+          y0: w.bbox.y0,
+          x1: w.bbox.x1,
+          y1: w.bbox.y1,
+          confidence: w.confidence,
+        }));
+
       pages.push({
         pageIndex: i - 1,
         text: result.data.text,
         confidence: result.data.confidence,
+        words,
+        imageWidth: canvas.width,
+        imageHeight: canvas.height,
       });
     }
 

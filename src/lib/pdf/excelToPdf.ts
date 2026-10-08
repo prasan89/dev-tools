@@ -75,7 +75,9 @@ export async function convertExcelToPdf(file: File, options: ExcelToPdfOptions):
         const maxCols = Math.min(row.length, Math.floor((PAGE_W - MARGIN * 2) / COL_W));
 
         for (let c = 0; c < maxCols; c++) {
-          const cellText = String(row[c] ?? '').slice(0, 20);
+          // Estimate chars that fit: assume ~0.6x fontSize per char for Courier
+          const maxChars = Math.max(1, Math.floor(COL_W / (options.fontSize * 0.6)));
+          const cellText = String(row[c] ?? '').slice(0, maxChars);
           if (cellText) {
             page.drawText(cellText, {
               x: MARGIN + c * COL_W,

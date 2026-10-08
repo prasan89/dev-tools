@@ -126,8 +126,10 @@ export async function compressPdf(
   const { PDFDocument } = await loadPdfLib();
 
   let doc: import('pdf-lib').PDFDocument;
+  let pageCount: number;
   try {
     doc = await PDFDocument.load(srcBytes, { ignoreEncryption: false });
+    pageCount = doc.getPageCount();
   } catch (err: unknown) {
     const msg = String(err);
     if (msg.includes('encrypted') || msg.includes('password')) {
@@ -135,8 +137,6 @@ export async function compressPdf(
     }
     return { success: false, error: 'This PDF appears to be corrupted or is not a valid PDF.' };
   }
-
-  const pageCount = doc.getPageCount();
 
   onProgress?.('Optimizing PDF structure…');
 
