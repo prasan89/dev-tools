@@ -5,7 +5,7 @@ import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { Providers } from '@/components/layout/Providers';
 import { GoogleAnalytics } from '@/components/analytics/GoogleAnalytics';
-import { AdSenseScript } from '@/components/ads/AdSenseScript';
+import { AdSenseConditional } from '@/components/ads/AdSenseConditional';
 import { SITE_URL, SITE_NAME, siteUrl } from '@/lib/seo/site-config';
 import { ServiceWorkerRegistration } from '@/components/pwa/ServiceWorkerRegistration';
 
@@ -47,7 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning className={inter.variable}>
       <body className="min-h-screen flex flex-col font-sans bg-[#FAF9F6] dark:bg-gray-950 text-gray-900 dark:text-gray-100 antialiased">
         <GoogleAnalytics />
-        <AdSenseScript />
+        <AdSenseConditional />
         <ServiceWorkerRegistration />
         <Providers>
           <Header />

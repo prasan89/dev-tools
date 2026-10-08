@@ -307,9 +307,10 @@ describe('AdSense', () => {
     expect(src).toContain('h-[');
   });
 
-  it('layout.tsx includes AdSenseScript', () => {
+  it('layout.tsx includes AdSense (via AdSenseConditional)', () => {
     const src = readApp('layout.tsx');
-    expect(src).toContain('AdSenseScript');
+    // AdSenseConditional wraps AdSenseScript and skips the homepage
+    expect(src).toContain('AdSenseConditional');
   });
 });
 

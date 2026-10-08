@@ -1925,6 +1925,37 @@ export function getCategories(): Category[] {
   return CATEGORIES;
 }
 
+export const CATEGORY_ORDER = [
+  'json',
+  'encoding',
+  'developer',
+  'data-code',
+  'utilities',
+  'developer-utilities',
+  'date-time',
+  'regex',
+  'sql',
+  'xml',
+  'yaml',
+  'data',
+  'text',
+] as const;
+
+export function getOrderedCategories(): Category[] {
+  const ordered: Category[] = [];
+  for (const id of CATEGORY_ORDER) {
+    const cat = CATEGORIES.find((c) => c.id === id);
+    if (cat) ordered.push(cat);
+  }
+  // Append any categories not listed in CATEGORY_ORDER
+  for (const cat of CATEGORIES) {
+    if (!(CATEGORY_ORDER as readonly string[]).includes(cat.id)) {
+      ordered.push(cat);
+    }
+  }
+  return ordered;
+}
+
 export function getCategoryById(id: string): Category | undefined {
   return categoryById.get(id);
 }
