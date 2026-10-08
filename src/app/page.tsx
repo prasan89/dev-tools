@@ -4,6 +4,7 @@ import { SearchBar } from '@/components/ui/SearchBar';
 import { CategoryCard } from '@/components/ui/CategoryCard';
 import { getOrderedCategories, getEnabledTools, getToolsByCategory, getCategoryColors } from '@/lib/registry';
 import { JsonLd, websiteSchema } from '@/components/seo/JsonLd';
+import { Footer } from '@/components/layout/Footer';
 
 export const metadata: Metadata = {
   title: 'DevToolsHub — Free Online Developer & PDF Tools',
@@ -85,6 +86,7 @@ export default function HomePage() {
           </div>
         </section>
       </div>
+      <Footer />
     </>
   );
 }
