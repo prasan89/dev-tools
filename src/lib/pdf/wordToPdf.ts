@@ -1,5 +1,6 @@
 import type { PdfToolResult } from '@/types/pdf';
 import { convertHtmlToPdf } from '@/lib/pdf/htmlToPdf';
+import { sanitizeConverterHtml } from '@/lib/security';
 
 export async function convertWordToPdf(file: File): Promise<PdfToolResult> {
   try {
@@ -12,11 +13,14 @@ export async function convertWordToPdf(file: File): Promise<PdfToolResult> {
 
     const mammoth = await import('mammoth');
     const result = await mammoth.convertToHtml({ arrayBuffer: buf });
-    const html = result.value;
+    const rawHtml = result.value;
 
-    if (!html.trim()) {
+    if (!rawHtml.trim()) {
       return { success: false, error: 'No content could be extracted from the Word document' };
     }
+
+    // Sanitize mammoth output before passing to the PDF renderer
+    const html = sanitizeConverterHtml(rawHtml);
 
     const title = file.name.replace(/\.docx?$/i, '');
     const pdfResult = await convertHtmlToPdf(html, title);

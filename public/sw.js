@@ -1,8 +1,12 @@
 // PDFTools Service Worker
 // Caches app shell and static assets for offline use.
 // User documents are NEVER cached here — they stay in the browser session only.
+//
+// Cache versioning: bump CACHE_VERSION when deploying breaking changes to the SW
+// so old caches are cleaned up on activation.
 
-const CACHE_NAME = 'devtoolshub-v1';
+const CACHE_VERSION = 'v2';
+const CACHE_NAME = `devtoolshub-${CACHE_VERSION}`;
 
 // App shell routes to precache on install
 const APP_SHELL = [

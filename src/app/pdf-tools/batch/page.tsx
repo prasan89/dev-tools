@@ -15,7 +15,7 @@ import {
 
 const OPERATIONS: { value: BatchOperation; label: string }[] = [
   { value: 'compress', label: 'Compress' },
-  { value: 'watermark', label: 'Watermark (DRAFT)' },
+  { value: 'watermark', label: 'Watermark' },
   { value: 'metadata-clean', label: 'Clean Metadata' },
   { value: 'page-numbers', label: 'Add Page Numbers' },
 ];

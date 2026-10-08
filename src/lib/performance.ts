@@ -1,6 +1,7 @@
 export interface CoreWebVitalsTargets {
   LCP: number;
-  FID: number;
+  /** INP (Interaction to Next Paint) replaced FID as a Core Web Vital in March 2024. */
+  INP: number;
   CLS: number;
   FCP: number;
   TTFB: number;
@@ -8,7 +9,7 @@ export interface CoreWebVitalsTargets {
 
 export const WEB_VITALS_TARGETS: CoreWebVitalsTargets = {
   LCP: 2500,
-  FID: 100,
+  INP: 200,
   CLS: 0.1,
   FCP: 1800,
   TTFB: 800,
@@ -28,9 +29,10 @@ export function getClsStatus(score: number): VitalStatus {
   return 'poor';
 }
 
-export function getFidStatus(ms: number): VitalStatus {
-  if (ms <= 100) return 'good';
-  if (ms <= 300) return 'needs-improvement';
+/** INP thresholds per Google's March 2024 Core Web Vitals update. */
+export function getInpStatus(ms: number): VitalStatus {
+  if (ms <= 200) return 'good';
+  if (ms <= 500) return 'needs-improvement';
   return 'poor';
 }
 

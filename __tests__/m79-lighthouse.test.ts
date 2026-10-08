@@ -2,7 +2,7 @@ import {
   WEB_VITALS_TARGETS,
   getLcpStatus,
   getClsStatus,
-  getFidStatus,
+  getInpStatus,
   getFcpStatus,
   getVitalStatusLabel,
 } from '../src/lib/performance';
@@ -10,7 +10,7 @@ import {
 describe('WEB_VITALS_TARGETS', () => {
   it('LCP target is 2500ms', () => { expect(WEB_VITALS_TARGETS.LCP).toBe(2500); });
   it('CLS target is 0.1', () => { expect(WEB_VITALS_TARGETS.CLS).toBe(0.1); });
-  it('FID target is 100ms', () => { expect(WEB_VITALS_TARGETS.FID).toBe(100); });
+  it('INP target is 200ms (replaced FID as of March 2024)', () => { expect(WEB_VITALS_TARGETS.INP).toBe(200); });
 });
 
 describe('getLcpStatus', () => {
@@ -26,10 +26,11 @@ describe('getClsStatus', () => {
   it('returns poor for 0.3', () => { expect(getClsStatus(0.3)).toBe('poor'); });
 });
 
-describe('getFidStatus', () => {
-  it('returns good for 50ms', () => { expect(getFidStatus(50)).toBe('good'); });
-  it('returns needs-improvement for 200ms', () => { expect(getFidStatus(200)).toBe('needs-improvement'); });
-  it('returns poor for 400ms', () => { expect(getFidStatus(400)).toBe('poor'); });
+describe('getInpStatus', () => {
+  it('returns good for 150ms', () => { expect(getInpStatus(150)).toBe('good'); });
+  it('returns good at boundary 200ms', () => { expect(getInpStatus(200)).toBe('good'); });
+  it('returns needs-improvement for 300ms', () => { expect(getInpStatus(300)).toBe('needs-improvement'); });
+  it('returns poor for 600ms', () => { expect(getInpStatus(600)).toBe('poor'); });
 });
 
 describe('getFcpStatus', () => {
