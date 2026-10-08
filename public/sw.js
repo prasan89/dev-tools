@@ -5,19 +5,15 @@
 // Cache versioning: bump CACHE_VERSION when deploying breaking changes to the SW
 // so old caches are cleaned up on activation.
 
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const CACHE_NAME = `devtoolshub-${CACHE_VERSION}`;
 
-// App shell routes to precache on install
-const APP_SHELL = [
-  '/',
-  '/pdf-tools',
-];
-
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
-  );
+  // No precaching of HTML pages — they are served network-first and must always
+  // reflect the latest deploy. Precaching HTML causes stale-CSS flashes when a
+  // new SW version activates with a new cache name while the old one had cached
+  // different chunk hashes.
+  event.waitUntil(Promise.resolve());
   self.skipWaiting();
 });
 
