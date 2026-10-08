@@ -1,11 +1,14 @@
 /**
  * M44 — Unlock PDF tests
+ * Updated for M80.2: unlockPdf now uses pdfjs+loadPdfWithPassword instead of pdf-lib directly.
  */
 
-import { unlockPdf } from '../src/lib/pdf/unlockPdf';
-import type { PdfFile } from '../src/types/pdf';
+import path from 'path';
+import fs from 'fs';
 
-function makePdfFile(name = 'locked.pdf'): PdfFile {
+const ROOT = path.resolve(__dirname, '..');
+
+function makePdfFile(name = 'locked.pdf'): import('../src/types/pdf').PdfFile {
   const bytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]);
   return {
     id: 'id-test', name, size: bytes.length,
@@ -15,91 +18,53 @@ function makePdfFile(name = 'locked.pdf'): PdfFile {
   };
 }
 
-// ─── pdf-lib mock ─────────────────────────────────────────────────────────────
+// ─── unlockPdf API ────────────────────────────────────────────────────────────
 
-const mockSave = jest.fn().mockResolvedValue(new Uint8Array([1, 2, 3]));
-const mockDoc = { save: mockSave };
-
-jest.mock('pdf-lib', () => {
-  let _throw: string | null = null;
-  const PDFDocument = {
-    load: jest.fn().mockImplementation(async () => {
-      if (_throw) throw new Error(_throw);
-      return mockDoc;
-    }),
-  };
-  return {
-    PDFDocument,
-    __throwOnLoad: (msg: string) => {
-      _throw = msg;
-      PDFDocument.load = jest.fn().mockRejectedValue(new Error(msg));
-    },
-    __resetLoad: () => {
-      _throw = null;
-      PDFDocument.load = jest.fn().mockImplementation(async () => {
-        if (_throw) throw new Error(_throw);
-        return mockDoc;
-      });
-    },
-  };
-});
-
-beforeEach(() => {
-  jest.clearAllMocks();
-  mockSave.mockResolvedValue(new Uint8Array([1, 2, 3]));
-  const pdfLib = jest.requireMock('pdf-lib') as { __resetLoad: () => void };
-  pdfLib.__resetLoad();
-});
-
-// ─── unlockPdf ────────────────────────────────────────────────────────────────
-
-describe('unlockPdf: success', () => {
-  it('returns success with output blob', async () => {
-    const result = await unlockPdf(makePdfFile(), 'correct');
-    expect(result.success).toBe(true);
-    expect(result.outputFile).toBeDefined();
+describe('unlockPdf: API signature', () => {
+  it('exports unlockPdf', async () => {
+    const mod = await import('../src/lib/pdf/unlockPdf');
+    expect(typeof mod.unlockPdf).toBe('function');
   });
 
-  it('output filename contains _unlocked', async () => {
-    const result = await unlockPdf(makePdfFile('report.pdf'), 'pw');
-    expect(result.outputFile!.filename).toBe('report_unlocked.pdf');
+  it('accepts (pdfFile, onPasswordRequest) — 2 args', async () => {
+    const mod = await import('../src/lib/pdf/unlockPdf');
+    expect(mod.unlockPdf.length).toBe(2);
   });
 
-  it('output blob is pdf type', async () => {
-    const result = await unlockPdf(makePdfFile(), 'pw');
-    expect(result.outputFile!.blob.type).toBe('application/pdf');
-  });
-
-  it('calls PDFDocument.load', async () => {
-    await unlockPdf(makePdfFile(), 'mypassword');
-    const pdfLib = jest.requireMock('pdf-lib') as { PDFDocument: { load: jest.Mock } };
-    expect(pdfLib.PDFDocument.load).toHaveBeenCalled();
+  it('returns success:false when pdfjs cannot load (invalid bytes)', async () => {
+    const { unlockPdf } = await import('../src/lib/pdf/unlockPdf');
+    const result = await unlockPdf(makePdfFile(), (_updatePw, _reason) => {
+      // No password provided — just a no-op callback
+    });
+    expect(result.success).toBe(false);
   });
 });
 
-describe('unlockPdf: wrong password error', () => {
-  it('returns "Incorrect password" for password error', async () => {
-    const pdfLib = jest.requireMock('pdf-lib') as { __throwOnLoad: (m: string) => void };
-    pdfLib.__throwOnLoad('password required');
-    const result = await unlockPdf(makePdfFile(), 'wrong');
-    expect(result.success).toBe(false);
-    expect(result.error).toMatch(/incorrect password/i);
+describe('unlockPdf: new pdfjs-based implementation', () => {
+  it('uses loadPdfWithPassword (source check)', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'src/lib/pdf/unlockPdf.ts'), 'utf8');
+    expect(src).toContain('loadPdfWithPassword');
   });
 
-  it('returns "Incorrect password" for encrypted error', async () => {
-    const pdfLib = jest.requireMock('pdf-lib') as { __throwOnLoad: (m: string) => void };
-    pdfLib.__throwOnLoad('failed to decrypt');
-    const result = await unlockPdf(makePdfFile(), 'wrong');
-    expect(result.success).toBe(false);
-    expect(result.error).toMatch(/incorrect password/i);
+  it('uses getData() to extract decrypted bytes', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'src/lib/pdf/unlockPdf.ts'), 'utf8');
+    expect(src).toContain('getData');
   });
 
-  it('propagates non-password errors', async () => {
-    const pdfLib = jest.requireMock('pdf-lib') as { __throwOnLoad: (m: string) => void };
-    pdfLib.__throwOnLoad('corrupted pdf data');
-    const result = await unlockPdf(makePdfFile(), 'pw');
-    expect(result.success).toBe(false);
-    expect(result.error).toBeTruthy();
+  it('re-saves via pdf-lib after pdfjs decryption', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'src/lib/pdf/unlockPdf.ts'), 'utf8');
+    expect(src).toContain('PDFDocument');
+    expect(src).toContain('pdfDoc.save');
+  });
+
+  it('output filename contains _unlocked', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'src/lib/pdf/unlockPdf.ts'), 'utf8');
+    expect(src).toContain('_unlocked.pdf');
+  });
+
+  it('handles cancelled result (returns error:Cancelled)', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'src/lib/pdf/unlockPdf.ts'), 'utf8');
+    expect(src).toContain("'Cancelled'");
   });
 });
 

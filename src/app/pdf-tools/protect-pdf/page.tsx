@@ -13,6 +13,16 @@ import {
 } from '@/lib/pdf/protectPdf';
 import type { ProtectConfig } from '@/lib/pdf/protectPdf';
 
+const ENCRYPTION_UNAVAILABLE_NOTICE = (
+  <div role="alert" className="rounded-lg border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4 space-y-1">
+    <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">PDF encryption not yet available</p>
+    <p className="text-xs text-amber-700 dark:text-amber-400">
+      PDF password protection requires encryption support that is not yet available in the browser-based version of this tool.
+      The underlying PDF library (pdf-lib v1.17.1) does not implement PDF encryption. We are working on adding this feature.
+    </p>
+  </div>
+);
+
 type SaveState = 'idle' | 'saving' | 'done' | 'error';
 
 function passwordStrength(pw: string): { label: string; color: string; width: string } {
@@ -76,6 +86,7 @@ export default function ProtectPdfPage() {
 
   return (
     <PdfToolLayout title="Password Protect PDF" description="Encrypt your PDF with a password. Processed entirely in your browser — your file never leaves your device.">
+      {ENCRYPTION_UNAVAILABLE_NOTICE}
       {!pdfFile ? (
         <PdfDropzone onFilesSelected={handleFile} multiple={false} />
       ) : (
@@ -201,10 +212,11 @@ export default function ProtectPdfPage() {
           ) : (
             <button
               onClick={handleProtect}
-              disabled={saveState === 'saving' || !config.userPassword.trim() || !passwordsMatch}
-              className="w-full rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-sm font-medium py-2.5 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              disabled
+              title="PDF encryption is not yet supported"
+              className="w-full rounded-lg bg-blue-300 dark:bg-blue-800 cursor-not-allowed text-white text-sm font-medium py-2.5"
             >
-              {saveState === 'saving' ? 'Protecting…' : 'Protect PDF'}
+              Protect PDF (Not Yet Available)
             </button>
           )}
         </div>

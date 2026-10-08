@@ -24,50 +24,16 @@ export function generateOwnerPassword(): string {
   return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+// pdf-lib v1.17.1 does not implement PDF encryption.
+// Passing userPassword/ownerPassword to pdfDoc.save() is silently ignored.
+// This function returns an honest error rather than producing a fake "protected" PDF.
 export async function buildProtectedPdf(
-  pdfFile: PdfFile,
-  config: ProtectConfig,
+  _pdfFile: PdfFile,
+  _config: ProtectConfig,
 ): Promise<PdfToolResult> {
-  if (!config.userPassword.trim()) {
-    return { success: false, error: 'User password cannot be empty' };
-  }
-
-  try {
-    const { PDFDocument } = await import('pdf-lib');
-
-    const buf = await new Promise<ArrayBuffer>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as ArrayBuffer);
-      reader.onerror = () => reject(reader.error);
-      reader.readAsArrayBuffer(pdfFile.file);
-    });
-
-    const pdfDoc = await PDFDocument.load(buf);
-
-    const ownerPassword = config.ownerPassword.trim() || generateOwnerPassword();
-
-    const saveOptions = {
-      userPassword: config.userPassword,
-      ownerPassword,
-      permissions: {
-        printing: config.allowPrinting ? 'highResolution' : 'notAllowed',
-        copying: config.allowCopying,
-        modifying: config.allowModifying,
-        annotating: false,
-        fillingForms: false,
-        contentAccessibility: true,
-        documentAssembly: false,
-      },
-    };
-    const bytes = await pdfDoc.save(saveOptions as Parameters<typeof pdfDoc.save>[0]);
-
-    const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
-    const base = pdfFile.name.replace(/\.pdf$/i, '');
-    return {
-      success: true,
-      outputFile: { blob, filename: `${base}_protected.pdf`, size: blob.size },
-    };
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : 'Failed to protect PDF' };
-  }
+  return {
+    success: false,
+    error:
+      'PDF encryption is not supported in this browser-based tool. The pdf-lib library (v1.17.1) does not implement PDF encryption. This feature requires an updated library.',
+  };
 }

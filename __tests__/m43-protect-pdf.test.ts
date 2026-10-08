@@ -1,5 +1,7 @@
 /**
  * M43 — Password Protect PDF tests
+ * Updated for M80.2: buildProtectedPdf now returns an honest limitation error
+ * because pdf-lib v1.17.1 does not support PDF encryption.
  */
 
 import {
@@ -8,6 +10,10 @@ import {
   buildProtectedPdf,
 } from '../src/lib/pdf/protectPdf';
 import type { PdfFile } from '../src/types/pdf';
+import fs from 'fs';
+import path from 'path';
+
+const ROOT = path.resolve(__dirname, '..');
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -25,42 +31,6 @@ function makePdfFile(name = 'doc.pdf'): PdfFile {
     loadedAt: 0,
   };
 }
-
-// ─── pdf-lib mock ─────────────────────────────────────────────────────────────
-
-const mockSave = jest.fn().mockResolvedValue(new Uint8Array([1, 2, 3]));
-const mockDoc = { save: mockSave };
-
-jest.mock('pdf-lib', () => {
-  let _throw: string | null = null;
-  const PDFDocument = {
-    load: jest.fn().mockImplementation(async () => {
-      if (_throw) throw new Error(_throw);
-      return mockDoc;
-    }),
-  };
-  return {
-    PDFDocument,
-    __throwOnLoad: (msg: string) => {
-      _throw = msg;
-      PDFDocument.load = jest.fn().mockRejectedValue(new Error(msg));
-    },
-    __resetLoad: () => {
-      _throw = null;
-      PDFDocument.load = jest.fn().mockImplementation(async () => {
-        if (_throw) throw new Error(_throw);
-        return mockDoc;
-      });
-    },
-  };
-});
-
-beforeEach(() => {
-  jest.clearAllMocks();
-  mockSave.mockResolvedValue(new Uint8Array([1, 2, 3]));
-  const pdfLib = jest.requireMock('pdf-lib') as { __resetLoad: () => void };
-  pdfLib.__resetLoad();
-});
 
 // ─── defaultProtectConfig ─────────────────────────────────────────────────────
 
@@ -102,77 +72,65 @@ describe('generateOwnerPassword', () => {
   it('generates different passwords on each call', () => {
     const a = generateOwnerPassword();
     const b = generateOwnerPassword();
-    // statistically should differ; same length at minimum
     expect(typeof a).toBe('string');
     expect(typeof b).toBe('string');
   });
 });
 
-// ─── buildProtectedPdf ────────────────────────────────────────────────────────
+// ─── buildProtectedPdf: limitation notice (M80.2) ─────────────────────────────
 
-describe('buildProtectedPdf: success', () => {
-  it('returns success and output blob', async () => {
+describe('buildProtectedPdf: encryption limitation (M80.2)', () => {
+  it('always returns success: false (encryption not supported)', async () => {
     const config = { ...defaultProtectConfig(), userPassword: 'secret123' };
     const result = await buildProtectedPdf(makePdfFile(), config);
-    expect(result.success).toBe(true);
-    expect(result.outputFile).toBeDefined();
-    expect(result.outputFile!.filename).toMatch(/_protected\.pdf$/);
+    expect(result.success).toBe(false);
   });
 
-  it('calls pdfDoc.save', async () => {
-    const config = { ...defaultProtectConfig(), userPassword: 'mypassword' };
-    await buildProtectedPdf(makePdfFile(), config);
-    expect(mockSave).toHaveBeenCalledTimes(1);
-  });
-
-  it('output filename is base_protected.pdf', async () => {
+  it('error message mentions encryption is not supported', async () => {
     const config = { ...defaultProtectConfig(), userPassword: 'pw' };
-    const result = await buildProtectedPdf(makePdfFile('report.pdf'), config);
-    expect(result.outputFile!.filename).toBe('report_protected.pdf');
-  });
-
-  it('auto-generates ownerPassword when empty', async () => {
-    const config = { ...defaultProtectConfig(), userPassword: 'pw', ownerPassword: '' };
     const result = await buildProtectedPdf(makePdfFile(), config);
-    expect(result.success).toBe(true);
-    expect(mockSave).toHaveBeenCalledTimes(1);
-    const callArg = mockSave.mock.calls[0][0];
-    expect(callArg).toBeDefined();
-    expect(typeof callArg?.ownerPassword).toBe('string');
-    expect(callArg?.ownerPassword).toHaveLength(16);
+    expect(result.error?.toLowerCase()).toContain('encryption');
   });
 
-  it('uses provided ownerPassword when given', async () => {
-    const config = { ...defaultProtectConfig(), userPassword: 'pw', ownerPassword: 'owner123' };
-    await buildProtectedPdf(makePdfFile(), config);
-    const callArg = mockSave.mock.calls[0][0];
-    expect(callArg?.ownerPassword).toBe('owner123');
+  it('does not attempt file read (resolves immediately)', async () => {
+    const config = { ...defaultProtectConfig(), userPassword: 'pw' };
+    const fakePdfFile = {} as PdfFile; // no .file property — would crash if accessed
+    await expect(buildProtectedPdf(fakePdfFile, config)).resolves.toMatchObject({ success: false });
+  });
+
+  it('error mentions pdf-lib or library limitation', async () => {
+    const config = { ...defaultProtectConfig(), userPassword: 'pw' };
+    const result = await buildProtectedPdf(makePdfFile(), config);
+    // error should mention pdf-lib or library or browser-based
+    expect(result.error).toMatch(/pdf-lib|library|browser/i);
+  });
+
+  it('returns no outputFile (there is no output)', async () => {
+    const config = { ...defaultProtectConfig(), userPassword: 'pw' };
+    const result = await buildProtectedPdf(makePdfFile(), config);
+    expect(result.outputFile).toBeUndefined();
   });
 });
 
-describe('buildProtectedPdf: validation', () => {
-  it('returns error for empty userPassword', async () => {
-    const config = { ...defaultProtectConfig(), userPassword: '' };
-    const result = await buildProtectedPdf(makePdfFile(), config);
-    expect(result.success).toBe(false);
-    expect(result.error).toMatch(/empty|password/i);
+// ─── protect-pdf page source audit ───────────────────────────────────────────
+
+describe('protect-pdf page: honest limitation UI', () => {
+  let src: string;
+
+  beforeAll(() => {
+    src = fs.readFileSync(path.join(ROOT, 'src/app/pdf-tools/protect-pdf/page.tsx'), 'utf8');
   });
 
-  it('returns error for whitespace-only userPassword', async () => {
-    const config = { ...defaultProtectConfig(), userPassword: '   ' };
-    const result = await buildProtectedPdf(makePdfFile(), config);
-    expect(result.success).toBe(false);
+  it('shows ENCRYPTION_UNAVAILABLE_NOTICE', () => {
+    expect(src).toContain('ENCRYPTION_UNAVAILABLE_NOTICE');
   });
-});
 
-describe('buildProtectedPdf: error handling', () => {
-  it('returns failure when pdf-lib throws on load', async () => {
-    const pdfLib = jest.requireMock('pdf-lib') as { __throwOnLoad: (m: string) => void };
-    pdfLib.__throwOnLoad('corrupted PDF');
-    const config = { ...defaultProtectConfig(), userPassword: 'pw' };
-    const result = await buildProtectedPdf(makePdfFile(), config);
-    expect(result.success).toBe(false);
-    expect(result.error).toMatch(/corrupted pdf/i);
+  it('protect button is always disabled', () => {
+    expect(src).toMatch(/disabled(?:\s|>)/);
+  });
+
+  it('notice mentions encryption', () => {
+    expect(src.toLowerCase()).toContain('encryption');
   });
 });
 

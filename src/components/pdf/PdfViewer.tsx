@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { formatFileSize } from '@/lib/pdf/validation';
 import type { PdfFile, PdfProcessingState, PdfViewerState } from '@/types/pdf';
+import { PdfPasswordDialog } from '@/components/pdf/PdfPasswordDialog';
 
 // pdf.js is loaded lazily — only when this component mounts
 type PdfjsLib = typeof import('pdfjs-dist');
@@ -60,6 +61,7 @@ export function PdfViewer({
   const [processingState, setProcessingState] = useState<PdfProcessingState>('loading');
   const [error, setError] = useState<string | null>(null);
   const [pageInput, setPageInput] = useState('1');
+  const [passwordState, setPasswordState] = useState<'idle' | 'required' | 'incorrect'>('idle');
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -67,6 +69,7 @@ export function PdfViewer({
   const loadingTaskRef = useRef<PDFDocumentLoadingTask | null>(null);
   const renderTaskRef = useRef<{ cancel: () => void } | null>(null);
   const objectUrlRef = useRef<string | null>(null);
+  const pendingPasswordRef = useRef<((pw: string) => void) | null>(null);
 
   const cleanup = useCallback(() => {
     renderTaskRef.current?.cancel();
@@ -90,6 +93,8 @@ export function PdfViewer({
     let cancelled = false;
     setProcessingState('loading');
     setError(null);
+    setPasswordState('idle');
+    pendingPasswordRef.current = null;
 
     async function loadDoc() {
       try {
@@ -99,7 +104,18 @@ export function PdfViewer({
         const url = URL.createObjectURL(pdfFile.file);
         objectUrlRef.current = url;
 
-        const loadingTask = pdfjs.getDocument({ url, disableAutoFetch: true, disableStream: false, wasmUrl: '/wasm/' });
+        const loadingTask = pdfjs.getDocument({
+          url,
+          disableAutoFetch: true,
+          disableStream: false,
+          wasmUrl: '/wasm/',
+        });
+
+        // onPassword is set on loadingTask (not in DocumentInitParameters)
+        loadingTask.onPassword = (updatePassword: (pw: string) => void, reason: number) => {
+          pendingPasswordRef.current = updatePassword;
+          setPasswordState(reason === 2 ? 'incorrect' : 'required');
+        };
         loadingTaskRef.current = loadingTask;
         const doc = await loadingTask.promise;
         if (cancelled) {
@@ -114,15 +130,16 @@ export function PdfViewer({
         setPageInput('1');
         onPageCountLoaded?.(totalPages);
         setProcessingState('ready');
+        setPasswordState('idle');
       } catch (err: unknown) {
         if (cancelled) return;
         const msg = String(err);
-        if (msg.includes('PasswordException') || msg.includes('password')) {
-          setProcessingState('password-required');
-          setError('This PDF is password protected. Password-protected PDFs cannot be opened.');
-        } else if (msg.includes('InvalidPDFException') || msg.includes('corrupt')) {
+        if (msg.includes('InvalidPDFException') || msg.includes('corrupt')) {
           setProcessingState('corrupted');
           setError('This PDF appears to be corrupted or is not a valid PDF file.');
+        } else if (msg.includes('PasswordException') || msg.includes('password')) {
+          setProcessingState('password-required');
+          setError('A password is required to open this PDF. No password was provided.');
         } else {
           setProcessingState('error');
           setError('Failed to load PDF. The file may be corrupted or unsupported.');
@@ -251,6 +268,24 @@ export function PdfViewer({
     [state.currentPage, goToPage, zoomIn, zoomOut]
   );
 
+  const handlePasswordSubmit = useCallback((password: string) => {
+    const fn = pendingPasswordRef.current;
+    pendingPasswordRef.current = null;
+    setPasswordState('idle');
+    if (fn) fn(password);
+  }, []);
+
+  const handlePasswordCancel = useCallback(() => {
+    pendingPasswordRef.current = null;
+    setPasswordState('idle');
+    if (loadingTaskRef.current && !loadingTaskRef.current.destroyed) {
+      loadingTaskRef.current.destroy().catch(() => {});
+      loadingTaskRef.current = null;
+    }
+    setProcessingState('password-required');
+    setError('A password is required to open this PDF. No password was provided.');
+  }, []);
+
   const isLoading = processingState === 'loading' || processingState === 'rendering';
 
   return (
@@ -261,6 +296,14 @@ export function PdfViewer({
       aria-label={`PDF viewer — ${pdfFile.name}`}
       role="region"
     >
+      {passwordState !== 'idle' && (
+        <PdfPasswordDialog
+          message={passwordState === 'incorrect' ? 'Incorrect password. Please try again.' : 'This PDF is password protected. Enter the password to continue.'}
+          isIncorrect={passwordState === 'incorrect'}
+          onSubmit={handlePasswordSubmit}
+          onCancel={handlePasswordCancel}
+        />
+      )}
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2">
         {/* File info */}
