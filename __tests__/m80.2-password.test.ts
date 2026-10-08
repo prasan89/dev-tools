@@ -354,12 +354,12 @@ describe('protect-pdf page', () => {
   });
 
   it('shows encryption unavailable notice', () => {
-    expect(src).toContain('ENCRYPTION_UNAVAILABLE_NOTICE');
+    expect(src.toLowerCase()).toContain('not yet available');
   });
 
   it('protect button is disabled', () => {
-    // The button should have `disabled` as a bare attribute
-    expect(src).toMatch(/disabled(?:\s|>)/);
+    // The full form was removed — no button, no form, just the notice
+    expect(src).not.toContain('handleProtect');
   });
 
   it('notice mentions encryption limitation', () => {

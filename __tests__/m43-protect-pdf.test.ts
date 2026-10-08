@@ -121,16 +121,19 @@ describe('protect-pdf page: honest limitation UI', () => {
     src = fs.readFileSync(path.join(ROOT, 'src/app/pdf-tools/protect-pdf/page.tsx'), 'utf8');
   });
 
-  it('shows ENCRYPTION_UNAVAILABLE_NOTICE', () => {
-    expect(src).toContain('ENCRYPTION_UNAVAILABLE_NOTICE');
-  });
-
-  it('protect button is always disabled', () => {
-    expect(src).toMatch(/disabled(?:\s|>)/);
+  it('shows encryption unavailable notice', () => {
+    // The notice content is inlined directly in JSX
+    expect(src.toLowerCase()).toContain('not yet available');
   });
 
   it('notice mentions encryption', () => {
     expect(src.toLowerCase()).toContain('encryption');
+  });
+
+  it('page has no interactive form (no protect button)', () => {
+    // The full form was removed; no onClick handler or form submit should exist
+    expect(src).not.toContain('handleProtect');
+    expect(src).not.toContain('onClick={handleProtect');
   });
 });
 
