@@ -253,7 +253,6 @@ describe('PDF Tools hub page structure', () => {
     const mod = await import('../src/app/pdf-tools/page');
     const meta = mod.metadata as { title: string; description: string };
     expect(meta.title).toContain('PDF Tools');
-    expect(meta.title).toContain('DevToolsHub');
     expect(typeof meta.description).toBe('string');
     expect(meta.description.length).toBeGreaterThan(50);
   });
@@ -282,9 +281,9 @@ describe('Sitemap includes pdf-tools pages', () => {
     expect(sitemapEntries.some((e) => e.url === `${SITE_URL}/pdf-tools`)).toBe(true);
   });
 
-  it('/pdf-tools/viewer is in sitemap', () => {
+  it('/pdf-tools/viewer is NOT in sitemap (removed, internal page)', () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { SITE_URL } = require('../src/lib/seo/site-config');
-    expect(sitemapEntries.some((e) => e.url === `${SITE_URL}/pdf-tools/viewer`)).toBe(true);
+    expect(sitemapEntries.some((e) => e.url === `${SITE_URL}/pdf-tools/viewer`)).toBe(false);
   });
 });

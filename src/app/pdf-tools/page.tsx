@@ -1,21 +1,31 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { siteUrl } from '@/lib/seo/site-config';
+import { JsonLd, breadcrumbSchema, faqSchema } from '@/components/seo/JsonLd';
 
 export const metadata: Metadata = {
-  title: 'Fast, Free & Private PDF Tools — DevToolsHub',
+  title: 'Free Online PDF Tools — Merge, Split, Compress & Convert PDFs',
   description:
-    'Free online PDF tools that run entirely in your browser. Merge, split, compress, edit, convert and OCR PDFs — your files stay on your device, never uploaded.',
+    'Free online PDF tools that run entirely in your browser. Merge, split, compress, edit, convert and OCR PDFs — your files stay on your device, never uploaded to a server.',
   alternates: {
     canonical: siteUrl('/pdf-tools'),
   },
+  keywords: [
+    'pdf tools online', 'free pdf tools', 'merge pdf', 'split pdf', 'compress pdf',
+    'pdf converter', 'ocr pdf', 'pdf editor online', 'browser based pdf',
+  ],
   openGraph: {
-    title: 'Fast, Free & Private PDF Tools — DevToolsHub',
+    title: 'Free Online PDF Tools — Merge, Split, Compress & Convert PDFs',
     description:
-      'Free online PDF tools that run entirely in your browser. Merge, split, compress, edit, convert and OCR PDFs — your files stay on your device, never uploaded.',
+      'Free online PDF tools that run entirely in your browser. Merge, split, compress, edit, convert and OCR PDFs — your files stay on your device, never uploaded to a server.',
     url: siteUrl('/pdf-tools'),
     siteName: 'DevToolsHub',
     type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Free Online PDF Tools — DevToolsHub',
+    description: 'Merge, split, compress, edit, convert and OCR PDFs free in your browser.',
   },
 };
 
@@ -153,7 +163,32 @@ function ToolCard({ tool }: { tool: ToolEntry }) {
 export default function PdfToolsPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-10 space-y-10">
-      {/* Hero */}
+      <JsonLd data={breadcrumbSchema([
+        { name: 'Home', url: siteUrl('/') },
+        { name: 'PDF Tools', url: siteUrl('/pdf-tools') },
+      ])} />
+      <JsonLd data={faqSchema([
+        {
+          question: 'Are these PDF tools really free?',
+          answer: 'Yes. All PDF tools on DevToolsHub are free to use with no account or subscription required.',
+        },
+        {
+          question: 'Are my PDF files uploaded to your servers?',
+          answer: 'No. All PDF processing happens entirely in your browser using JavaScript. Your files never leave your device.',
+        },
+        {
+          question: 'Do these tools work on mobile devices?',
+          answer: 'Yes. The tools work on modern mobile browsers including Safari on iOS and Chrome on Android.',
+        },
+        {
+          question: 'What PDF file size is supported?',
+          answer: 'File size limits depend on your device memory. Most tools work well with PDFs up to 100 MB. Very large files may be slower to process.',
+        },
+        {
+          question: 'Is an internet connection required after the page loads?',
+          answer: 'Once the tool page has loaded, most PDF operations work without an active internet connection since processing happens locally.',
+        },
+      ])} />
       <section>
         <div className="flex items-center gap-3 mb-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400" aria-hidden="true">

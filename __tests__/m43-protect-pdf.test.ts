@@ -118,7 +118,7 @@ describe('protect-pdf page: honest limitation UI', () => {
   let src: string;
 
   beforeAll(() => {
-    src = fs.readFileSync(path.join(ROOT, 'src/app/pdf-tools/protect-pdf/page.tsx'), 'utf8');
+    src = fs.readFileSync(path.join(ROOT, 'src/app/pdf-tools/protect-pdf/_client.tsx'), 'utf8');
   });
 
   it('shows encryption unavailable notice', () => {

@@ -264,7 +264,7 @@ describe('OCR engine progress stages', () => {
 describe('Batch UI labels', () => {
   it('batch page.tsx does not contain (DRAFT) label', () => {
     const src = fs.readFileSync(
-      path.join(ROOT, 'src/app/pdf-tools/batch/page.tsx'),
+      path.join(ROOT, 'src/app/pdf-tools/batch/_client.tsx'),
       'utf8',
     );
     expect(src).not.toContain('(DRAFT)');
@@ -272,7 +272,7 @@ describe('Batch UI labels', () => {
 
   it('batch page has Watermark operation without DRAFT suffix', () => {
     const src = fs.readFileSync(
-      path.join(ROOT, 'src/app/pdf-tools/batch/page.tsx'),
+      path.join(ROOT, 'src/app/pdf-tools/batch/_client.tsx'),
       'utf8',
     );
     expect(src).toContain("label: 'Watermark'");

@@ -318,7 +318,7 @@ describe('unlock-pdf page', () => {
 
   beforeAll(() => {
     src = fs.readFileSync(
-      path.join(ROOT, 'src/app/pdf-tools/unlock-pdf/page.tsx'),
+      path.join(ROOT, 'src/app/pdf-tools/unlock-pdf/_client.tsx'),
       'utf8',
     );
   });
@@ -348,7 +348,7 @@ describe('protect-pdf page', () => {
 
   beforeAll(() => {
     src = fs.readFileSync(
-      path.join(ROOT, 'src/app/pdf-tools/protect-pdf/page.tsx'),
+      path.join(ROOT, 'src/app/pdf-tools/protect-pdf/_client.tsx'),
       'utf8',
     );
   });

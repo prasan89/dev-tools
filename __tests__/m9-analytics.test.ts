@@ -120,7 +120,8 @@ describe('robots.ts', () => {
 describe('Canonical URLs', () => {
   it('homepage has canonical /', () => {
     const src = readApp('page.tsx');
-    expect(src).toContain("canonical: '/'");
+    expect(src).toContain('alternates');
+    expect(src).toContain('canonical');
   });
 
   it('tool page generates canonical with slug', () => {

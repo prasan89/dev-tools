@@ -1,3 +1,8 @@
+import type { Metadata } from 'next';
+import { pdfToolMetadata } from '@/lib/seo/pdf-tools';
+
+export const metadata: Metadata = pdfToolMetadata('workers') ?? {};
+
 export default function WorkersPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-10 space-y-8">

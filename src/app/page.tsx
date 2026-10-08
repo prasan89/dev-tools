@@ -5,12 +5,27 @@ import { CategoryCard } from '@/components/ui/CategoryCard';
 import { getOrderedCategories, getEnabledTools, getToolsByCategory, getCategoryColors } from '@/lib/registry';
 import { JsonLd, websiteSchema } from '@/components/seo/JsonLd';
 import { Footer } from '@/components/layout/Footer';
+import { siteUrl } from '@/lib/seo/site-config';
 
 export const metadata: Metadata = {
   title: 'DevToolsHub — Free Online Developer & PDF Tools',
   description:
-    'Free online developer tools and PDF utilities. JSON, Base64, URL encoding, regex, SQL, XML, YAML, plus merge, split, compress and convert PDFs — all run in your browser, no data sent to servers.',
-  alternates: { canonical: '/' },
+    'Free online tools for developers and everyday tasks. JSON formatter, Base64 encoder, URL encoder, regex tester, PDF merger, PDF compressor and 80+ more tools — all run in your browser, nothing uploaded.',
+  alternates: { canonical: siteUrl('/') },
+  openGraph: {
+    title: 'DevToolsHub — Free Online Developer & PDF Tools',
+    description:
+      'Free online tools for developers and everyday tasks. JSON formatter, Base64 encoder, URL encoder, regex tester, PDF merger, PDF compressor and 80+ more tools — all run in your browser, nothing uploaded.',
+    url: siteUrl('/'),
+    siteName: 'DevToolsHub',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'DevToolsHub — Free Online Developer & PDF Tools',
+    description:
+      'Free online tools for developers and everyday tasks. 80+ tools run entirely in your browser.',
+  },
 };
 
 export default function HomePage() {
