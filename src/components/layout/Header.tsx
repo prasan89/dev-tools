@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { MobileNav } from './MobileNav';
-import { CATEGORIES, getEnabledTools } from '@/lib/registry';
+import { CATEGORIES } from '@/lib/categories';
+import { getEnabledTools } from '@/lib/registry';
 
 export function Header() {
   const toolCount = getEnabledTools().length;
@@ -56,7 +57,7 @@ export function Header() {
           <Link href="/datasets" className="shrink-0 rounded-md px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors font-semibold">
             Datasets
           </Link>
-          <Link href="/pdf-tools" className="shrink-0 rounded-md px-3 py-1 text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors font-semibold">
+          <Link href="/pdf-tools" prefetch={false} className="shrink-0 rounded-md px-3 py-1 text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors font-semibold">
             PDF Tools
           </Link>
           {CATEGORIES.map((cat) => (

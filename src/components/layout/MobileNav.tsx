@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { CATEGORIES } from '@/lib/registry';
+import { CATEGORIES } from '@/lib/categories';
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);

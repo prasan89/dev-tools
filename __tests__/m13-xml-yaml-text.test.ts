@@ -437,6 +437,10 @@ describe('registry — M12 tools', () => {
     path.join(process.cwd(), 'src/lib/registry.ts'),
     'utf8',
   );
+  const categoriesSrc = fs.readFileSync(
+    path.join(process.cwd(), 'src/lib/categories.ts'),
+    'utf8',
+  );
 
   const newIds = [
     'xml-validator', 'xml-minifier', 'xml-to-json', 'xml-escape',
@@ -451,7 +455,7 @@ describe('registry — M12 tools', () => {
   }
 
   it("'text' category is in CATEGORIES", () => {
-    expect(registrySrc).toContain("id: 'text'");
+    expect(categoriesSrc).toContain("id: 'text'");
   });
 });
 

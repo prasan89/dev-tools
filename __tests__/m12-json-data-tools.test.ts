@@ -333,6 +333,10 @@ describe('registry — new tools', () => {
     path.join(process.cwd(), 'src/lib/registry.ts'),
     'utf8',
   );
+  const categoriesSrc = fs.readFileSync(
+    path.join(process.cwd(), 'src/lib/categories.ts'),
+    'utf8',
+  );
 
   const newIds = [
     'jsonpath-tester',
@@ -350,7 +354,7 @@ describe('registry — new tools', () => {
   }
 
   it("'data' category is defined in CATEGORIES", () => {
-    expect(registrySrc).toContain("id: 'data'");
+    expect(categoriesSrc).toContain("id: 'data'");
   });
 });
 

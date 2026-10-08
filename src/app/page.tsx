@@ -56,6 +56,7 @@ export default function HomePage() {
             {/* PDF Tools — always first */}
             <Link
               href="/pdf-tools"
+              prefetch={false}
               className={`group flex flex-col gap-3 rounded-xl border p-5 ${pdfColors.border} ${pdfColors.bg} hover:shadow-sm transition-all`}
             >
               <span
