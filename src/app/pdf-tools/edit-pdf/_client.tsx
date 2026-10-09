@@ -184,67 +184,76 @@ async function decodeImageFile(file: File): Promise<{
   return { objectUrl: objUrl, mimeType, naturalWidth, naturalHeight, embedBytes };
 }
 
-// ─── Text edit modal ──────────────────────────────────────────────────────────
+// ─── Inline text editor overlay ──────────────────────────────────────────────
 
-function TextEditModal({
-  obj, onSave, onClose,
-}: { obj: TextObject; onSave: (p: Partial<TextObject>) => void; onClose: () => void }) {
-  const [text, setText] = useState(obj.text);
-  const [fontSize, setFontSize] = useState(obj.fontSize);
-  const [fontFamily, setFontFamily] = useState<FontFamily>(obj.fontFamily);
-  const [bold, setBold] = useState(obj.bold);
-  const [italic, setItalic] = useState(obj.italic);
-  const [underline, setUnderline] = useState(obj.underline);
-  const [color, setColor] = useState(obj.color);
-  const [align, setAlign] = useState<TextAlign>(obj.align);
-  const [opacity, setOpacity] = useState(obj.opacity);
+function InlineTextEditor({
+  obj,
+  pageScale,
+  pageDims,
+  onCommit,
+  onClose,
+}: {
+  obj: TextObject;
+  pageScale: number;
+  pageDims: { widthPt: number; heightPt: number };
+  onCommit: (text: string) => void;
+  onClose: () => void;
+}) {
   const taRef = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => { taRef.current?.focus(); }, []);
+  const committedRef = useRef(false);
+  const { left, top, width, height } = pdfRectToScreen(obj.x, obj.y, obj.width, obj.height, pageScale, pageDims.heightPt);
+
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, []);
+
+  const commit = (val: string) => {
+    if (committedRef.current) return;
+    committedRef.current = true;
+    onCommit(val);
+  };
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Edit text"
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ background: 'white', borderRadius: 12, padding: '1.5rem', width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: '0.75rem', boxShadow: '0 25px 50px rgba(0,0,0,0.3)' }}>
-        <h2 className="text-base font-semibold text-gray-900">Edit Text</h2>
-        <textarea ref={taRef} value={text} onChange={(e) => setText(e.target.value)} rows={4}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
-          aria-label="Text content" />
-        <div className="flex flex-wrap gap-2 items-center">
-          <select value={fontFamily} onChange={(e) => setFontFamily(e.target.value as FontFamily)} className="rounded border border-gray-300 px-2 py-1 text-sm" aria-label="Font family">
-            <option value="Helvetica">Helvetica</option>
-            <option value="Times New Roman">Times New Roman</option>
-            <option value="Courier">Courier</option>
-          </select>
-          <div className="flex items-center gap-1">
-            <label className="text-xs text-gray-600">Size:</label>
-            <input type="number" value={fontSize} onChange={(e) => setFontSize(Math.max(6, Math.min(200, Number(e.target.value))))} min={6} max={200} className="w-16 rounded border border-gray-300 px-2 py-1 text-sm" aria-label="Font size" />
-          </div>
-          <button onClick={() => setBold(!bold)} className={`px-2 py-1 rounded border text-sm font-bold ${bold ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-700'}`} aria-pressed={bold}>B</button>
-          <button onClick={() => setItalic(!italic)} className={`px-2 py-1 rounded border text-sm italic ${italic ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-700'}`} aria-pressed={italic}>I</button>
-          <button onClick={() => setUnderline(!underline)} className={`px-2 py-1 rounded border text-sm underline ${underline ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-700'}`} aria-pressed={underline}>U</button>
-        </div>
-        <div className="flex flex-wrap gap-2 items-center">
-          {(['left', 'center', 'right'] as TextAlign[]).map((a) => (
-            <button key={a} onClick={() => setAlign(a)} className={`px-2 py-1 rounded border text-xs ${align === a ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-600'}`} aria-pressed={align === a}>{a.charAt(0).toUpperCase() + a.slice(1)}</button>
-          ))}
-          <div className="flex items-center gap-1">
-            <label className="text-xs text-gray-600">Color:</label>
-            <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-8 h-7 rounded border border-gray-300 p-0.5 cursor-pointer" aria-label="Text color" />
-          </div>
-          <div className="flex items-center gap-1">
-            <label className="text-xs text-gray-600">Opacity:</label>
-            <input type="range" value={Math.round(opacity * 100)} onChange={(e) => setOpacity(Number(e.target.value) / 100)} min={10} max={100} className="w-20" />
-            <span className="text-xs text-gray-500">{Math.round(opacity * 100)}%</span>
-          </div>
-        </div>
-        <div className="flex justify-end gap-2 pt-1">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
-          <button onClick={() => { onSave({ text, fontSize, fontFamily, bold, italic, underline, color, align, opacity }); onClose(); }}
-            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">Apply</button>
-        </div>
-      </div>
-    </div>
+    <textarea
+      ref={taRef}
+      defaultValue={obj.text}
+      aria-label="Edit text inline"
+      style={{
+        position: 'absolute',
+        left: left - 2,
+        top: top - 2,
+        width: Math.max(width + 4, 80),
+        height: Math.max(height + 4, 24),
+        minWidth: 80,
+        minHeight: 24,
+        fontSize: obj.fontSize * pageScale,
+        fontFamily: obj.fontFamily === 'Times New Roman' ? 'Times New Roman, serif' : obj.fontFamily === 'Courier' ? 'Courier New, monospace' : 'Helvetica, Arial, sans-serif',
+        fontWeight: obj.bold ? 'bold' : 'normal',
+        fontStyle: obj.italic ? 'italic' : 'normal',
+        textDecoration: obj.underline ? 'underline' : 'none',
+        color: obj.color,
+        textAlign: obj.align,
+        lineHeight: 1.2,
+        background: 'rgba(255,255,255,0.95)',
+        border: '2px solid #2563eb',
+        borderRadius: 3,
+        padding: '2px 4px',
+        resize: 'none',
+        outline: 'none',
+        zIndex: 20,
+        boxShadow: '0 2px 8px rgba(37,99,235,0.2)',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+      }}
+      onBlur={(e) => { commit(e.target.value); onClose(); }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') { onClose(); }
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit((e.target as HTMLTextAreaElement).value); onClose(); }
+      }}
+    />
   );
 }
 
@@ -320,179 +329,294 @@ function AnnotEditModal({
   );
 }
 
-// ─── Contextual style panel for selected object ────────────────────────────────
+// ─── Contextual sidebar panel for selected object ─────────────────────────────
 
-function StylePanel({
+function SidebarPanel({
   obj,
   onUpdate,
+  onDelete,
+  onDuplicate,
+  onBringForward,
+  onSendBackward,
+  onBringToFront,
+  onSendToBack,
+  onEditText,
+  onEditNote,
+  onReplaceImage,
 }: {
-  obj: EditorObject;
+  obj: EditorObject | null;
   onUpdate: (id: string, patch: Partial<EditorObject>) => void;
+  onDelete: (id: string) => void;
+  onDuplicate: (id: string) => void;
+  onBringForward: (id: string) => void;
+  onSendBackward: (id: string) => void;
+  onBringToFront: (id: string) => void;
+  onSendToBack: (id: string) => void;
+  onEditText: (id: string) => void;
+  onEditNote: (id: string) => void;
+  onReplaceImage: (id: string, file: File) => void;
 }) {
-  if (obj.type === 'rect') {
-    const r = obj as RectObject;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  if (!obj) {
     return (
-      <div className="flex flex-wrap gap-2 items-center px-1 py-1 text-xs">
-        <span className="text-gray-500 font-medium">Rectangle:</span>
-        <label className="flex items-center gap-1">Border <input type="color" value={r.borderColor} onChange={(e) => onUpdate(r.id, { borderColor: e.target.value } as Partial<RectObject>)} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
-        <label className="flex items-center gap-1">Fill <input type="color" value={r.fillColor} onChange={(e) => onUpdate(r.id, { fillColor: e.target.value } as Partial<RectObject>)} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
-        <label className="flex items-center gap-1">Fill opacity
-          <input type="range" value={Math.round(r.fillOpacity * 100)} onChange={(e) => onUpdate(r.id, { fillOpacity: Number(e.target.value) / 100 } as Partial<RectObject>)} min={0} max={100} className="w-16" />
-        </label>
-        <label className="flex items-center gap-1">Border W
-          <input type="number" value={r.borderWidth} onChange={(e) => onUpdate(r.id, { borderWidth: Math.max(0, Number(e.target.value)) } as Partial<RectObject>)} min={0} max={20} className="w-12 rounded border border-gray-300 px-1 py-0.5" />
-        </label>
-        <label className="flex items-center gap-1">Opacity
-          <input type="range" value={Math.round(r.opacity * 100)} onChange={(e) => onUpdate(r.id, { opacity: Number(e.target.value) / 100 } as Partial<RectObject>)} min={10} max={100} className="w-16" />
-        </label>
+      <div className="flex flex-col h-full">
+        <div className="p-3 border-b border-gray-100 dark:border-gray-800">
+          <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Properties</h3>
+        </div>
+        <div className="flex-1 flex items-center justify-center p-4">
+          <p className="text-xs text-center text-gray-400 dark:text-gray-600">Select an object<br />to edit its properties</p>
+        </div>
       </div>
     );
   }
 
-  if (obj.type === 'ellipse') {
-    const ell = obj as EllipseObject;
-    return (
-      <div className="flex flex-wrap gap-2 items-center px-1 py-1 text-xs">
-        <span className="text-gray-500 font-medium">Ellipse:</span>
-        <label className="flex items-center gap-1">Border <input type="color" value={ell.borderColor} onChange={(e) => onUpdate(ell.id, { borderColor: e.target.value } as Partial<EllipseObject>)} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
-        <label className="flex items-center gap-1">Fill <input type="color" value={ell.fillColor} onChange={(e) => onUpdate(ell.id, { fillColor: e.target.value } as Partial<EllipseObject>)} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
-        <label className="flex items-center gap-1">Fill opacity
-          <input type="range" value={Math.round(ell.fillOpacity * 100)} onChange={(e) => onUpdate(ell.id, { fillOpacity: Number(e.target.value) / 100 } as Partial<EllipseObject>)} min={0} max={100} className="w-16" />
-        </label>
-        <label className="flex items-center gap-1">Border W
-          <input type="number" value={ell.borderWidth} onChange={(e) => onUpdate(ell.id, { borderWidth: Math.max(0, Number(e.target.value)) } as Partial<EllipseObject>)} min={0} max={20} className="w-12 rounded border border-gray-300 px-1 py-0.5" />
-        </label>
-      </div>
-    );
-  }
-
-  if (obj.type === 'line' || obj.type === 'arrow') {
-    const lo = obj as LineObject | ArrowObject;
-    return (
-      <div className="flex flex-wrap gap-2 items-center px-1 py-1 text-xs">
-        <span className="text-gray-500 font-medium">{obj.type === 'arrow' ? 'Arrow' : 'Line'}:</span>
-        <label className="flex items-center gap-1">Color <input type="color" value={lo.color} onChange={(e) => onUpdate(lo.id, { color: e.target.value })} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
-        <label className="flex items-center gap-1">Width
-          <input type="number" value={lo.width} onChange={(e) => onUpdate(lo.id, { width: Math.max(1, Number(e.target.value)) })} min={1} max={20} className="w-12 rounded border border-gray-300 px-1 py-0.5" />
-        </label>
-        <label className="flex items-center gap-1">Opacity
-          <input type="range" value={Math.round(lo.opacity * 100)} onChange={(e) => onUpdate(lo.id, { opacity: Number(e.target.value) / 100 })} min={10} max={100} className="w-16" />
-        </label>
-        {obj.type === 'arrow' && (
-          <label className="flex items-center gap-1">Head
-            <select value={(lo as ArrowObject).arrowhead} onChange={(e) => onUpdate(lo.id, { arrowhead: e.target.value as ArrowheadStyle } as Partial<ArrowObject>)} className="rounded border border-gray-300 px-1 py-0.5 text-xs">
-              <option value="none">None</option>
-              <option value="standard">Standard</option>
-              <option value="filled">Filled</option>
+  const renderStyleControls = () => {
+    if (obj.type === 'text') {
+      const txt = obj as TextObject;
+      return (
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Font</label>
+            <select value={txt.fontFamily} onChange={(e) => onUpdate(txt.id, { fontFamily: e.target.value as FontFamily })} className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1.5 text-xs text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500" aria-label="Font family">
+              <option value="Helvetica">Helvetica</option>
+              <option value="Times New Roman">Times New Roman</option>
+              <option value="Courier">Courier</option>
             </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Size</label>
+            <input type="number" value={txt.fontSize} onChange={(e) => onUpdate(txt.id, { fontSize: Math.max(6, Math.min(200, Number(e.target.value))) })} min={6} max={200} className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1.5 text-xs text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500" aria-label="Font size" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Style</label>
+            <div className="flex gap-1.5">
+              <button onClick={() => onUpdate(txt.id, { bold: !txt.bold })} className={`flex-1 py-1.5 rounded-md border text-xs font-bold ${txt.bold ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`} aria-pressed={txt.bold}>B</button>
+              <button onClick={() => onUpdate(txt.id, { italic: !txt.italic })} className={`flex-1 py-1.5 rounded-md border text-xs italic ${txt.italic ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`} aria-pressed={txt.italic}>I</button>
+              <button onClick={() => onUpdate(txt.id, { underline: !txt.underline })} className={`flex-1 py-1.5 rounded-md border text-xs underline ${txt.underline ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`} aria-pressed={txt.underline}>U</button>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Align</label>
+            <div className="flex gap-1.5">
+              {(['left', 'center', 'right'] as TextAlign[]).map((a) => (
+                <button key={a} onClick={() => onUpdate(txt.id, { align: a })} className={`flex-1 py-1.5 rounded-md border text-xs ${txt.align === a ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`} aria-pressed={txt.align === a}>{a === 'left' ? '⬛' : a === 'center' ? '☰' : '⬜'}</button>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-2 items-center">
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Color</label>
+            <input type="color" value={txt.color} onChange={(e) => onUpdate(txt.id, { color: e.target.value })} className="flex-1 h-8 rounded-md border border-gray-200 dark:border-gray-700 p-0.5 cursor-pointer" aria-label="Text color" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex justify-between">
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Opacity</label>
+              <span className="text-xs text-gray-400">{Math.round(txt.opacity * 100)}%</span>
+            </div>
+            <input type="range" value={Math.round(txt.opacity * 100)} onChange={(e) => onUpdate(txt.id, { opacity: Number(e.target.value) / 100 })} min={10} max={100} className="w-full" />
+          </div>
+          <button onClick={() => onEditText(txt.id)} className="w-full py-2 rounded-md border border-blue-200 dark:border-blue-800 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30">Edit Text</button>
+        </div>
+      );
+    }
+
+    if (obj.type === 'rect') {
+      const r = obj as RectObject;
+      return (
+        <div className="space-y-3">
+          <div className="flex gap-2 items-center">
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-14">Border</label>
+            <input type="color" value={r.borderColor} onChange={(e) => onUpdate(r.id, { borderColor: e.target.value } as Partial<RectObject>)} className="flex-1 h-8 rounded-md border border-gray-200 dark:border-gray-700 p-0.5 cursor-pointer" />
+          </div>
+          <div className="flex gap-2 items-center">
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-14">Fill</label>
+            <input type="color" value={r.fillColor} onChange={(e) => onUpdate(r.id, { fillColor: e.target.value } as Partial<RectObject>)} className="flex-1 h-8 rounded-md border border-gray-200 dark:border-gray-700 p-0.5 cursor-pointer" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex justify-between"><label className="text-xs font-medium text-gray-600 dark:text-gray-400">Fill opacity</label><span className="text-xs text-gray-400">{Math.round(r.fillOpacity * 100)}%</span></div>
+            <input type="range" value={Math.round(r.fillOpacity * 100)} onChange={(e) => onUpdate(r.id, { fillOpacity: Number(e.target.value) / 100 } as Partial<RectObject>)} min={0} max={100} className="w-full" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Border width</label>
+            <input type="number" value={r.borderWidth} onChange={(e) => onUpdate(r.id, { borderWidth: Math.max(0, Number(e.target.value)) } as Partial<RectObject>)} min={0} max={20} className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex justify-between"><label className="text-xs font-medium text-gray-600 dark:text-gray-400">Opacity</label><span className="text-xs text-gray-400">{Math.round(r.opacity * 100)}%</span></div>
+            <input type="range" value={Math.round(r.opacity * 100)} onChange={(e) => onUpdate(r.id, { opacity: Number(e.target.value) / 100 } as Partial<RectObject>)} min={10} max={100} className="w-full" />
+          </div>
+        </div>
+      );
+    }
+
+    if (obj.type === 'ellipse') {
+      const ell = obj as EllipseObject;
+      return (
+        <div className="space-y-3">
+          <div className="flex gap-2 items-center"><label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-14">Border</label><input type="color" value={ell.borderColor} onChange={(e) => onUpdate(ell.id, { borderColor: e.target.value } as Partial<EllipseObject>)} className="flex-1 h-8 rounded-md border border-gray-200 dark:border-gray-700 p-0.5 cursor-pointer" /></div>
+          <div className="flex gap-2 items-center"><label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-14">Fill</label><input type="color" value={ell.fillColor} onChange={(e) => onUpdate(ell.id, { fillColor: e.target.value } as Partial<EllipseObject>)} className="flex-1 h-8 rounded-md border border-gray-200 dark:border-gray-700 p-0.5 cursor-pointer" /></div>
+          <div className="space-y-1">
+            <div className="flex justify-between"><label className="text-xs font-medium text-gray-600 dark:text-gray-400">Fill opacity</label><span className="text-xs text-gray-400">{Math.round(ell.fillOpacity * 100)}%</span></div>
+            <input type="range" value={Math.round(ell.fillOpacity * 100)} onChange={(e) => onUpdate(ell.id, { fillOpacity: Number(e.target.value) / 100 } as Partial<EllipseObject>)} min={0} max={100} className="w-full" />
+          </div>
+          <div className="space-y-1.5"><label className="text-xs font-medium text-gray-600 dark:text-gray-400">Border width</label><input type="number" value={ell.borderWidth} onChange={(e) => onUpdate(ell.id, { borderWidth: Math.max(0, Number(e.target.value)) } as Partial<EllipseObject>)} min={0} max={20} className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
+        </div>
+      );
+    }
+
+    if (obj.type === 'line' || obj.type === 'arrow') {
+      const lo = obj as LineObject | ArrowObject;
+      return (
+        <div className="space-y-3">
+          <div className="flex gap-2 items-center"><label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-14">Color</label><input type="color" value={lo.color} onChange={(e) => onUpdate(lo.id, { color: e.target.value })} className="flex-1 h-8 rounded-md border border-gray-200 dark:border-gray-700 p-0.5 cursor-pointer" /></div>
+          <div className="space-y-1.5"><label className="text-xs font-medium text-gray-600 dark:text-gray-400">Width</label><input type="number" value={lo.width} onChange={(e) => onUpdate(lo.id, { width: Math.max(1, Number(e.target.value)) })} min={1} max={20} className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
+          <div className="space-y-1">
+            <div className="flex justify-between"><label className="text-xs font-medium text-gray-600 dark:text-gray-400">Opacity</label><span className="text-xs text-gray-400">{Math.round(lo.opacity * 100)}%</span></div>
+            <input type="range" value={Math.round(lo.opacity * 100)} onChange={(e) => onUpdate(lo.id, { opacity: Number(e.target.value) / 100 })} min={10} max={100} className="w-full" />
+          </div>
+          {obj.type === 'arrow' && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Arrowhead</label>
+              <select value={(lo as ArrowObject).arrowhead} onChange={(e) => onUpdate(lo.id, { arrowhead: e.target.value as ArrowheadStyle } as Partial<ArrowObject>)} className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+                <option value="none">None</option>
+                <option value="standard">Standard</option>
+                <option value="filled">Filled</option>
+              </select>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (obj.type === 'highlight' || obj.type === 'underline' || obj.type === 'strikethrough') {
+      const ann = obj as AnnotationObject;
+      return (
+        <div className="space-y-3">
+          <div className="flex gap-2 items-center"><label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-14">Color</label><input type="color" value={ann.color} onChange={(e) => onUpdate(ann.id, { color: e.target.value })} className="flex-1 h-8 rounded-md border border-gray-200 dark:border-gray-700 p-0.5 cursor-pointer" /></div>
+          <div className="space-y-1">
+            <div className="flex justify-between"><label className="text-xs font-medium text-gray-600 dark:text-gray-400">Opacity</label><span className="text-xs text-gray-400">{Math.round(ann.opacity * 100)}%</span></div>
+            <input type="range" value={Math.round(ann.opacity * 100)} onChange={(e) => onUpdate(ann.id, { opacity: Number(e.target.value) / 100 })} min={10} max={100} className="w-full" />
+          </div>
+          {(ann.type === 'underline' || ann.type === 'strikethrough') && (
+            <div className="space-y-1.5"><label className="text-xs font-medium text-gray-600 dark:text-gray-400">Line width</label><input type="number" value={ann.lineWidth} onChange={(e) => onUpdate(ann.id, { lineWidth: Math.max(1, Number(e.target.value)) })} min={1} max={10} className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
+          )}
+        </div>
+      );
+    }
+
+    if (obj.type === 'image') {
+      const img = obj as ImageObject;
+      return (
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <div className="flex justify-between"><label className="text-xs font-medium text-gray-600 dark:text-gray-400">Opacity</label><span className="text-xs text-gray-400">{Math.round(img.opacity * 100)}%</span></div>
+            <input type="range" value={Math.round(img.opacity * 100)} onChange={(e) => onUpdate(img.id, { opacity: Number(e.target.value) / 100 })} min={10} max={100} className="w-full" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Rotation</label>
+            <input type="number" value={Math.round(img.rotation)} onChange={(e) => onUpdate(img.id, { rotation: ((Number(e.target.value) % 360) + 360) % 360 })} min={0} max={359} step={90} className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
+          </div>
+          <label className="block w-full py-2 rounded-md border border-gray-200 dark:border-gray-700 text-xs text-center text-gray-700 dark:text-gray-300 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+            Replace Image
+            <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) onReplaceImage(img.id, f); }} />
           </label>
-        )}
-      </div>
-    );
-  }
+        </div>
+      );
+    }
 
-  if (obj.type === 'highlight' || obj.type === 'underline' || obj.type === 'strikethrough') {
-    const ann = obj as AnnotationObject;
-    const label = obj.type === 'highlight' ? 'Highlight' : obj.type === 'underline' ? 'Underline' : 'Strikethrough';
-    return (
-      <div className="flex flex-wrap gap-2 items-center px-1 py-1 text-xs">
-        <span className="text-gray-500 font-medium">{label}:</span>
-        <label className="flex items-center gap-1">Color <input type="color" value={ann.color} onChange={(e) => onUpdate(ann.id, { color: e.target.value })} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
-        <label className="flex items-center gap-1">Opacity
-          <input type="range" value={Math.round(ann.opacity * 100)} onChange={(e) => onUpdate(ann.id, { opacity: Number(e.target.value) / 100 })} min={10} max={100} className="w-16" />
-        </label>
-        {(ann.type === 'underline' || ann.type === 'strikethrough') && (
-          <label className="flex items-center gap-1">Line W
-            <input type="number" value={ann.lineWidth} onChange={(e) => onUpdate(ann.id, { lineWidth: Math.max(1, Number(e.target.value)) })} min={1} max={10} className="w-12 rounded border border-gray-300 px-1 py-0.5" />
-          </label>
-        )}
-      </div>
-    );
-  }
+    if (obj.type === 'stroke') {
+      const st = obj as StrokeObject;
+      return (
+        <div className="space-y-3">
+          <div className="flex gap-2 items-center"><label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-14">Color</label><input type="color" value={st.color} onChange={(e) => onUpdate(st.id, { color: e.target.value })} className="flex-1 h-8 rounded-md border border-gray-200 dark:border-gray-700 p-0.5 cursor-pointer" /></div>
+          <div className="space-y-1.5"><label className="text-xs font-medium text-gray-600 dark:text-gray-400">Width</label><input type="number" value={st.width} onChange={(e) => onUpdate(st.id, { width: Math.max(1, Number(e.target.value)) })} min={1} max={40} className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
+          <div className="space-y-1">
+            <div className="flex justify-between"><label className="text-xs font-medium text-gray-600 dark:text-gray-400">Opacity</label><span className="text-xs text-gray-400">{Math.round(st.opacity * 100)}%</span></div>
+            <input type="range" value={Math.round(st.opacity * 100)} onChange={(e) => onUpdate(st.id, { opacity: Number(e.target.value) / 100 })} min={10} max={100} className="w-full" />
+          </div>
+        </div>
+      );
+    }
 
-  if (obj.type === 'image') {
-    const img = obj as ImageObject;
-    return (
-      <div className="flex flex-wrap gap-2 items-center px-1 py-1 text-xs">
-        <span className="text-gray-500 font-medium">Image:</span>
-        <label className="flex items-center gap-1">Opacity
-          <input type="range" value={Math.round(img.opacity * 100)} onChange={(e) => onUpdate(img.id, { opacity: Number(e.target.value) / 100 })} min={10} max={100} className="w-16" />
-        </label>
-        <label className="flex items-center gap-1">Rotation
-          <input type="number" value={Math.round(img.rotation)} onChange={(e) => onUpdate(img.id, { rotation: ((Number(e.target.value) % 360) + 360) % 360 })} min={0} max={359} step={90} className="w-16 rounded border border-gray-300 px-1 py-0.5" />°
-        </label>
-      </div>
-    );
-  }
+    if (obj.type === 'whiteout') {
+      const wo = obj as WhiteoutObject;
+      return (
+        <div className="space-y-3">
+          <div className="flex gap-2 items-center"><label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-14">Fill</label><input type="color" value={wo.fillColor} onChange={(e) => onUpdate(wo.id, { fillColor: e.target.value } as Partial<WhiteoutObject>)} className="flex-1 h-8 rounded-md border border-gray-200 dark:border-gray-700 p-0.5 cursor-pointer" /></div>
+          <div className="space-y-1">
+            <div className="flex justify-between"><label className="text-xs font-medium text-gray-600 dark:text-gray-400">Opacity</label><span className="text-xs text-gray-400">{Math.round(wo.fillOpacity * 100)}%</span></div>
+            <input type="range" value={Math.round(wo.fillOpacity * 100)} onChange={(e) => onUpdate(wo.id, { fillOpacity: Number(e.target.value) / 100 } as Partial<WhiteoutObject>)} min={10} max={100} className="w-full" />
+          </div>
+          <div className="flex gap-2 items-center"><label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-14">Border</label><input type="color" value={wo.borderColor} onChange={(e) => onUpdate(wo.id, { borderColor: e.target.value } as Partial<WhiteoutObject>)} className="flex-1 h-8 rounded-md border border-gray-200 dark:border-gray-700 p-0.5 cursor-pointer" /></div>
+          <div className="space-y-1.5"><label className="text-xs font-medium text-gray-600 dark:text-gray-400">Border width</label><input type="number" value={wo.borderWidth} onChange={(e) => onUpdate(wo.id, { borderWidth: Math.max(0, Number(e.target.value)) } as Partial<WhiteoutObject>)} min={0} max={20} className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
+        </div>
+      );
+    }
 
-  if (obj.type === 'stroke') {
-    const st = obj as StrokeObject;
-    return (
-      <div className="flex flex-wrap gap-2 items-center px-1 py-1 text-xs">
-        <span className="text-gray-500 font-medium">Stroke:</span>
-        <label className="flex items-center gap-1">Color <input type="color" value={st.color} onChange={(e) => onUpdate(st.id, { color: e.target.value })} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
-        <label className="flex items-center gap-1">Width
-          <input type="number" value={st.width} onChange={(e) => onUpdate(st.id, { width: Math.max(1, Number(e.target.value)) })} min={1} max={40} className="w-12 rounded border border-gray-300 px-1 py-0.5" />
-        </label>
-        <label className="flex items-center gap-1">Opacity
-          <input type="range" value={Math.round(st.opacity * 100)} onChange={(e) => onUpdate(st.id, { opacity: Number(e.target.value) / 100 })} min={10} max={100} className="w-16" />
-        </label>
-      </div>
-    );
-  }
+    if (obj.type === 'sticky') {
+      const sn = obj as StickyNoteObject;
+      return (
+        <div className="space-y-3">
+          <div className="flex gap-2 items-center"><label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-14">Color</label><input type="color" value={sn.color} onChange={(e) => onUpdate(sn.id, { color: e.target.value } as Partial<StickyNoteObject>)} className="flex-1 h-8 rounded-md border border-gray-200 dark:border-gray-700 p-0.5 cursor-pointer" /></div>
+          <div className="space-y-1">
+            <div className="flex justify-between"><label className="text-xs font-medium text-gray-600 dark:text-gray-400">Opacity</label><span className="text-xs text-gray-400">{Math.round(sn.opacity * 100)}%</span></div>
+            <input type="range" value={Math.round(sn.opacity * 100)} onChange={(e) => onUpdate(sn.id, { opacity: Number(e.target.value) / 100 } as Partial<StickyNoteObject>)} min={20} max={100} className="w-full" />
+          </div>
+          <button onClick={() => onEditNote(sn.id)} className="w-full py-2 rounded-md border border-blue-200 dark:border-blue-800 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30">Edit Note</button>
+        </div>
+      );
+    }
 
-  if (obj.type === 'whiteout') {
-    const wo = obj as WhiteoutObject;
-    return (
-      <div className="flex flex-wrap gap-2 items-center px-1 py-1 text-xs">
-        <span className="text-gray-500 font-medium">Whiteout:</span>
-        <label className="flex items-center gap-1">Fill <input type="color" value={wo.fillColor} onChange={(e) => onUpdate(wo.id, { fillColor: e.target.value } as Partial<WhiteoutObject>)} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
-        <label className="flex items-center gap-1">Opacity
-          <input type="range" value={Math.round(wo.fillOpacity * 100)} onChange={(e) => onUpdate(wo.id, { fillOpacity: Number(e.target.value) / 100 } as Partial<WhiteoutObject>)} min={10} max={100} className="w-16" />
-        </label>
-        <label className="flex items-center gap-1">Border <input type="color" value={wo.borderColor} onChange={(e) => onUpdate(wo.id, { borderColor: e.target.value } as Partial<WhiteoutObject>)} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
-        <label className="flex items-center gap-1">Border W
-          <input type="number" value={wo.borderWidth} onChange={(e) => onUpdate(wo.id, { borderWidth: Math.max(0, Number(e.target.value)) } as Partial<WhiteoutObject>)} min={0} max={20} className="w-12 rounded border border-gray-300 px-1 py-0.5" />
-        </label>
-      </div>
-    );
-  }
+    if (obj.type === 'callout') {
+      const co = obj as CalloutObject;
+      return (
+        <div className="space-y-3">
+          <div className="flex gap-2 items-center"><label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-14">Bg</label><input type="color" value={co.bgColor} onChange={(e) => onUpdate(co.id, { bgColor: e.target.value } as Partial<CalloutObject>)} className="flex-1 h-8 rounded-md border border-gray-200 dark:border-gray-700 p-0.5 cursor-pointer" /></div>
+          <div className="flex gap-2 items-center"><label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-14">Text</label><input type="color" value={co.color} onChange={(e) => onUpdate(co.id, { color: e.target.value } as Partial<CalloutObject>)} className="flex-1 h-8 rounded-md border border-gray-200 dark:border-gray-700 p-0.5 cursor-pointer" /></div>
+          <div className="flex gap-2 items-center"><label className="text-xs font-medium text-gray-600 dark:text-gray-400 w-14">Border</label><input type="color" value={co.borderColor} onChange={(e) => onUpdate(co.id, { borderColor: e.target.value } as Partial<CalloutObject>)} className="flex-1 h-8 rounded-md border border-gray-200 dark:border-gray-700 p-0.5 cursor-pointer" /></div>
+          <div className="space-y-1.5"><label className="text-xs font-medium text-gray-600 dark:text-gray-400">Border width</label><input type="number" value={co.borderWidth} onChange={(e) => onUpdate(co.id, { borderWidth: Math.max(0, Number(e.target.value)) } as Partial<CalloutObject>)} min={0} max={10} className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
+          <div className="space-y-1.5"><label className="text-xs font-medium text-gray-600 dark:text-gray-400">Font size</label><input type="number" value={co.fontSize} onChange={(e) => onUpdate(co.id, { fontSize: Math.max(6, Math.min(72, Number(e.target.value))) } as Partial<CalloutObject>)} min={6} max={72} className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
+          <div className="space-y-1">
+            <div className="flex justify-between"><label className="text-xs font-medium text-gray-600 dark:text-gray-400">Opacity</label><span className="text-xs text-gray-400">{Math.round(co.opacity * 100)}%</span></div>
+            <input type="range" value={Math.round(co.opacity * 100)} onChange={(e) => onUpdate(co.id, { opacity: Number(e.target.value) / 100 } as Partial<CalloutObject>)} min={20} max={100} className="w-full" />
+          </div>
+          <button onClick={() => onEditNote(co.id)} className="w-full py-2 rounded-md border border-blue-200 dark:border-blue-800 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30">Edit Callout</button>
+        </div>
+      );
+    }
 
-  if (obj.type === 'sticky') {
-    const sn = obj as StickyNoteObject;
-    return (
-      <div className="flex flex-wrap gap-2 items-center px-1 py-1 text-xs">
-        <span className="text-gray-500 font-medium">Sticky Note:</span>
-        <label className="flex items-center gap-1">Color <input type="color" value={sn.color} onChange={(e) => onUpdate(sn.id, { color: e.target.value } as Partial<StickyNoteObject>)} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
-        <label className="flex items-center gap-1">Opacity
-          <input type="range" value={Math.round(sn.opacity * 100)} onChange={(e) => onUpdate(sn.id, { opacity: Number(e.target.value) / 100 } as Partial<StickyNoteObject>)} min={20} max={100} className="w-16" />
-        </label>
-      </div>
-    );
-  }
+    return null;
+  };
 
-  if (obj.type === 'callout') {
-    const co = obj as CalloutObject;
-    return (
-      <div className="flex flex-wrap gap-2 items-center px-1 py-1 text-xs">
-        <span className="text-gray-500 font-medium">Callout:</span>
-        <label className="flex items-center gap-1">Bg <input type="color" value={co.bgColor} onChange={(e) => onUpdate(co.id, { bgColor: e.target.value } as Partial<CalloutObject>)} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
-        <label className="flex items-center gap-1">Text <input type="color" value={co.color} onChange={(e) => onUpdate(co.id, { color: e.target.value } as Partial<CalloutObject>)} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
-        <label className="flex items-center gap-1">Border <input type="color" value={co.borderColor} onChange={(e) => onUpdate(co.id, { borderColor: e.target.value } as Partial<CalloutObject>)} className="w-7 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" /></label>
-        <label className="flex items-center gap-1">Border W
-          <input type="number" value={co.borderWidth} onChange={(e) => onUpdate(co.id, { borderWidth: Math.max(0, Number(e.target.value)) } as Partial<CalloutObject>)} min={0} max={10} className="w-12 rounded border border-gray-300 px-1 py-0.5" />
-        </label>
-        <label className="flex items-center gap-1">Size
-          <input type="number" value={co.fontSize} onChange={(e) => onUpdate(co.id, { fontSize: Math.max(6, Math.min(72, Number(e.target.value))) } as Partial<CalloutObject>)} min={6} max={72} className="w-12 rounded border border-gray-300 px-1 py-0.5" />
-        </label>
-        <label className="flex items-center gap-1">Opacity
-          <input type="range" value={Math.round(co.opacity * 100)} onChange={(e) => onUpdate(co.id, { opacity: Number(e.target.value) / 100 } as Partial<CalloutObject>)} min={20} max={100} className="w-16" />
-        </label>
-      </div>
-    );
-  }
+  const typeLabel: Record<string, string> = {
+    text: 'Text', image: 'Image', rect: 'Rectangle', ellipse: 'Ellipse',
+    line: 'Line', arrow: 'Arrow', highlight: 'Highlight', underline: 'Underline',
+    strikethrough: 'Strikethrough', stroke: 'Drawing', whiteout: 'Whiteout',
+    sticky: 'Sticky Note', callout: 'Callout',
+  };
 
-  return null;
+  return (
+    <div className="flex flex-col h-full">
+      <div className="p-3 border-b border-gray-100 dark:border-gray-800">
+        <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Properties</h3>
+        <p className="mt-0.5 text-xs text-gray-700 dark:text-gray-300 font-medium">{typeLabel[obj.type] ?? obj.type}</p>
+      </div>
+      <div className="flex-1 overflow-y-auto p-3">
+        {renderStyleControls()}
+      </div>
+      <div className="p-3 border-t border-gray-100 dark:border-gray-800 space-y-2">
+        <div className="grid grid-cols-4 gap-1">
+          <button onClick={() => onBringToFront(obj.id)} title="Bring to front" className="py-1.5 rounded-md border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">⇑</button>
+          <button onClick={() => onBringForward(obj.id)} title="Bring forward" className="py-1.5 rounded-md border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">↑</button>
+          <button onClick={() => onSendBackward(obj.id)} title="Send backward" className="py-1.5 rounded-md border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">↓</button>
+          <button onClick={() => onSendToBack(obj.id)} title="Send to back" className="py-1.5 rounded-md border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">⇓</button>
+        </div>
+        <div className="flex gap-1.5">
+          <button onClick={() => onDuplicate(obj.id)} className="flex-1 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">Duplicate</button>
+          <button onClick={() => onDelete(obj.id)} className="flex-1 py-1.5 rounded-md border border-red-200 dark:border-red-800 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20">Delete</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── Drawing in-progress state ─────────────────────────────────────────────────
@@ -1163,148 +1287,126 @@ export default function EditPdfPage() {
     >{label}</button>
   );
 
+  const handleReplaceImage = useCallback(async (id: string, file: File) => {
+    const decoded = await decodeImageFile(file).catch(() => null);
+    if (!decoded) return;
+    const { objectUrl, mimeType, naturalWidth, naturalHeight, embedBytes } = decoded;
+    const cur = editorState.objects.find((o) => o.id === id) as ImageObject | undefined;
+    setEditorState((s) => { pushHistory(s); return updateObject(s, id, { objectUrl, mimeType, naturalWidth, naturalHeight, embedBytes, height: (cur?.width ?? 100) / (naturalWidth / naturalHeight) } as Partial<ImageObject>); });
+  }, [editorState.objects, pushHistory]);
+
   return (
     <PdfToolLayout title="PDF Editor" description="Add text, images, shapes, and annotations. Nothing leaves your browser.">
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-        {toolBtn('select', 'Select')}
-        <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
-        {toolBtn('text', 'Text', 'Click to place text box')}
-        <button onClick={() => imageInputRef.current?.click()} className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">Image</button>
-        <input ref={imageInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" multiple className="sr-only" aria-label="Select image files" onChange={(e) => e.target.files && handleImageFiles(e.target.files)} />
-        <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
-        {toolBtn('rect', '□ Rect', 'Draw rectangle')}
-        {toolBtn('ellipse', '○ Ellipse', 'Draw ellipse')}
-        {toolBtn('line', '╱ Line', 'Draw line')}
-        {toolBtn('arrow', '→ Arrow', 'Draw arrow')}
-        <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
-        {toolBtn('highlight', '🟡 Highlight', 'Draw highlight')}
-        {toolBtn('underline', '‾ Underline', 'Draw underline')}
-        {toolBtn('strikethrough', '̶S̶ Strike', 'Draw strikethrough')}
-        <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
-        {toolBtn('pen', '✏ Draw', 'Freehand drawing')}
-        <label className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400" title="Pen color">
-          <input type="color" value={penColor} onChange={(e) => setPenColor(e.target.value)} className="w-6 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" aria-label="Pen color" />
-        </label>
-        <label className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400" title="Pen width">
-          <input type="number" value={penWidth} onChange={(e) => setPenWidth(Math.max(1, Math.min(40, Number(e.target.value))))} min={1} max={40} className="w-10 rounded border border-gray-300 dark:border-gray-600 px-1 py-0.5 text-xs bg-white dark:bg-gray-900" aria-label="Pen width" />
-        </label>
-        <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
-        {toolBtn('whiteout', '⬜ Whiteout', 'Draw whiteout cover')}
-        <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
-        {toolBtn('sticky', '📝 Note', 'Click to place a sticky note')}
-        {toolBtn('callout', '💬 Callout', 'Click to place a text callout')}
-        <button
-          onClick={() => setShowAnnotPanel((v) => !v)}
-          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap ${showAnnotPanel ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
-          title="Annotation panel"
-          aria-pressed={showAnnotPanel}
-        >
-          Annotations
-        </button>
-        <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
-        <button onClick={undo} disabled={history.length === 0} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-40" aria-label="Undo">↩</button>
-        <button onClick={redo} disabled={future.length === 0} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-40" aria-label="Redo">↪</button>
-        {selectedObj && (
-          <>
+      {/* Two-column layout: left = toolbar + canvas, right = sidebar */}
+      <div className="flex gap-3 items-start">
+        {/* Left column */}
+        <div className="flex-1 min-w-0 space-y-2">
+
+          {/* Toolbar */}
+          <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+            {toolBtn('select', 'Select')}
             <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
-            {selectedObj.type === 'text' && <button onClick={() => setTextEditId(selectedId)} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Edit Text</button>}
-            {(selectedObj.type === 'sticky' || selectedObj.type === 'callout') && <button onClick={() => setAnnotEditId(selectedId)} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Edit Note</button>}
-            <button onClick={() => setEditorState((s) => { pushHistory(s); return duplicateObject(s, selectedId!); })} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Dup</button>
-            <button onClick={() => setEditorState((s) => bringForward(s, selectedId!))} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300" title="Bring Forward">↑</button>
-            <button onClick={() => setEditorState((s) => sendBackward(s, selectedId!))} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300" title="Send Backward">↓</button>
-            <button onClick={() => setEditorState((s) => bringToFront(s, selectedId!))} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300" title="Bring to Front">⇑</button>
-            <button onClick={() => setEditorState((s) => sendToBack(s, selectedId!))} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300" title="Send to Back">⇓</button>
-            <button onClick={() => handleDelete(selectedId!)} className="px-2 py-1.5 rounded-lg text-xs border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400">Del</button>
-            {selectedObj.type === 'image' && (
-              <label className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 cursor-pointer">
-                Replace
-                <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" className="sr-only" onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file || !selectedId) return;
-                  const decoded = await decodeImageFile(file).catch(() => null);
-                  if (!decoded) return;
-                  const { objectUrl, mimeType, naturalWidth, naturalHeight, embedBytes } = decoded;
-                  const cur = editorState.objects.find((o) => o.id === selectedId) as ImageObject | undefined;
-                  setEditorState((s) => { pushHistory(s); return updateObject(s, selectedId, { objectUrl, mimeType, naturalWidth, naturalHeight, embedBytes, height: (cur?.width ?? 100) / (naturalWidth / naturalHeight) } as Partial<ImageObject>); });
-                }} />
-              </label>
-            )}
-          </>
-        )}
-        <div className="ml-auto flex gap-1.5">
-          <button onClick={handleReset} className="px-3 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400">Close</button>
-          <button
-            onClick={handleSave}
-            disabled={saveState === 'saving' || editorState.objects.length === 0}
-            className="px-4 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            {saveState === 'saving' ? 'Generating…' : 'Download PDF'}
-          </button>
-        </div>
-      </div>
-
-      {/* Style panel for selected object */}
-      {selectedObj && (
-        <div className="rounded-lg border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 px-2 py-1">
-          <StylePanel obj={selectedObj} onUpdate={handleUpdate} />
-        </div>
-      )}
-
-      {/* Mode hint */}
-      {toolMode === 'select' && pdfTextItems.length > 0 && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 px-1" role="status">
-          Hover over existing text to highlight it, then click to edit it.
-        </p>
-      )}
-      {toolMode !== 'select' && (
-        <p className="text-xs text-blue-600 dark:text-blue-400 px-1" role="status">
-          {toolMode === 'text' ? 'Click to place a text box.'
-          : toolMode === 'pen' ? 'Draw on the page. Release to finish.'
-          : toolMode === 'sticky' ? 'Click to place a sticky note.'
-          : toolMode === 'callout' ? 'Click to place a text callout.'
-          : `Draw on the page to add ${toolMode}.`}
-        </p>
-      )}
-      {/* Whiteout notice */}
-      {toolMode === 'whiteout' && (
-        <p className="text-xs text-amber-700 dark:text-amber-400 px-1 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg py-1.5" role="note">
-          Whiteout visually covers content. For permanent removal of sensitive information, use Redact PDF.
-        </p>
-      )}
-
-      {/* Error */}
-      {(loadError || (saveState === 'error' && saveResult && !saveResult.success)) && (
-        <div role="alert" className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20 px-4 py-3 text-sm text-red-700 dark:text-red-400">
-          {loadError ?? (saveResult && !saveResult.success ? saveResult.error : '')}
-        </div>
-      )}
-
-      {/* Page navigation */}
-      {pageCount > 1 && (
-        <div className="flex items-center gap-2 justify-center" role="navigation" aria-label="Page navigation">
-          <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage <= 1} className="px-3 py-1 rounded-lg border border-gray-300 dark:border-gray-600 text-sm disabled:opacity-40" aria-label="Previous page">←</button>
-          <span className="text-sm text-gray-600 dark:text-gray-400" aria-live="polite">Page {currentPage} of {pageCount}</span>
-          <button onClick={() => setCurrentPage((p) => Math.min(pageCount, p + 1))} disabled={currentPage >= pageCount} className="px-3 py-1 rounded-lg border border-gray-300 dark:border-gray-600 text-sm disabled:opacity-40" aria-label="Next page">→</button>
-        </div>
-      )}
-
-      {/* Canvas area */}
-      <div className="relative inline-block border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm bg-white">
-        {rendering && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-gray-900/80 z-10">
-            <span className="text-sm text-gray-500" role="status">Loading page…</span>
+            {toolBtn('text', 'Text', 'Click to place text box')}
+            <button onClick={() => imageInputRef.current?.click()} className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">Image</button>
+            <input ref={imageInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" multiple className="sr-only" aria-label="Select image files" onChange={(e) => e.target.files && handleImageFiles(e.target.files)} />
+            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
+            {toolBtn('rect', '□ Rect', 'Draw rectangle')}
+            {toolBtn('ellipse', '○ Ellipse', 'Draw ellipse')}
+            {toolBtn('line', '╱ Line', 'Draw line')}
+            {toolBtn('arrow', '→ Arrow', 'Draw arrow')}
+            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
+            {toolBtn('highlight', '🟡 Highlight', 'Draw highlight')}
+            {toolBtn('underline', '‾ Underline', 'Draw underline')}
+            {toolBtn('strikethrough', '̶S̶ Strike', 'Draw strikethrough')}
+            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
+            {toolBtn('pen', '✏ Draw', 'Freehand drawing')}
+            <label className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400" title="Pen color">
+              <input type="color" value={penColor} onChange={(e) => setPenColor(e.target.value)} className="w-6 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" aria-label="Pen color" />
+            </label>
+            <label className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400" title="Pen width">
+              <input type="number" value={penWidth} onChange={(e) => setPenWidth(Math.max(1, Math.min(40, Number(e.target.value))))} min={1} max={40} className="w-10 rounded border border-gray-300 dark:border-gray-600 px-1 py-0.5 text-xs bg-white dark:bg-gray-900" aria-label="Pen width" />
+            </label>
+            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
+            {toolBtn('whiteout', '⬜ Whiteout', 'Draw whiteout cover')}
+            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
+            {toolBtn('sticky', '📝 Note', 'Click to place a sticky note')}
+            {toolBtn('callout', '💬 Callout', 'Click to place a text callout')}
+            <button
+              onClick={() => setShowAnnotPanel((v) => !v)}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap ${showAnnotPanel ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+              title="Annotation panel"
+              aria-pressed={showAnnotPanel}
+            >
+              Annotations
+            </button>
+            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
+            <button onClick={undo} disabled={history.length === 0} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-40" aria-label="Undo">↩</button>
+            <button onClick={redo} disabled={future.length === 0} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-40" aria-label="Redo">↪</button>
+            <div className="ml-auto flex gap-1.5">
+              <button onClick={handleReset} className="px-3 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400">Close</button>
+              <button
+                onClick={handleSave}
+                disabled={saveState === 'saving' || editorState.objects.length === 0}
+                className="px-4 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {saveState === 'saving' ? 'Generating…' : 'Download PDF'}
+              </button>
+            </div>
           </div>
-        )}
-        <canvas
-          ref={canvasRef}
-          style={{ display: 'block', cursor: toolMode === 'text' ? 'text' : (isDrawingTool(toolMode) || toolMode === 'pen') ? 'crosshair' : 'default', touchAction: (isDrawingTool(toolMode) || toolMode === 'pen') ? 'none' : 'auto' }}
-          onPointerDown={handleCanvasPointerDown}
-          onPointerMove={handleCanvasPointerMove}
-          onPointerUp={handleCanvasPointerUp}
-          aria-label={`PDF page ${currentPage}`}
-          role="img"
-        />
+
+          {/* Mode hint */}
+          {toolMode === 'select' && pdfTextItems.length > 0 && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 px-1" role="status">
+              Click existing text to edit it inline. Double-click added text boxes to edit.
+            </p>
+          )}
+          {toolMode !== 'select' && (
+            <p className="text-xs text-blue-600 dark:text-blue-400 px-1" role="status">
+              {toolMode === 'text' ? 'Click to place a text box.'
+              : toolMode === 'pen' ? 'Draw on the page. Release to finish.'
+              : toolMode === 'sticky' ? 'Click to place a sticky note.'
+              : toolMode === 'callout' ? 'Click to place a text callout.'
+              : `Draw on the page to add ${toolMode}.`}
+            </p>
+          )}
+          {toolMode === 'whiteout' && (
+            <p className="text-xs text-amber-700 dark:text-amber-400 px-1 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg py-1.5" role="note">
+              Whiteout visually covers content. For permanent removal of sensitive information, use Redact PDF.
+            </p>
+          )}
+
+          {/* Error */}
+          {(loadError || (saveState === 'error' && saveResult && !saveResult.success)) && (
+            <div role="alert" className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+              {loadError ?? (saveResult && !saveResult.success ? saveResult.error : '')}
+            </div>
+          )}
+
+          {/* Page navigation */}
+          {pageCount > 1 && (
+            <div className="flex items-center gap-2 justify-center" role="navigation" aria-label="Page navigation">
+              <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage <= 1} className="px-3 py-1 rounded-lg border border-gray-300 dark:border-gray-600 text-sm disabled:opacity-40" aria-label="Previous page">←</button>
+              <span className="text-sm text-gray-600 dark:text-gray-400" aria-live="polite">Page {currentPage} of {pageCount}</span>
+              <button onClick={() => setCurrentPage((p) => Math.min(pageCount, p + 1))} disabled={currentPage >= pageCount} className="px-3 py-1 rounded-lg border border-gray-300 dark:border-gray-600 text-sm disabled:opacity-40" aria-label="Next page">→</button>
+            </div>
+          )}
+
+          {/* Canvas area */}
+          <div className="relative inline-block border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm bg-white">
+            {rendering && (
+              <div className="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-gray-900/80 z-10">
+                <span className="text-sm text-gray-500" role="status">Loading page…</span>
+              </div>
+            )}
+            <canvas
+              ref={canvasRef}
+              style={{ display: 'block', cursor: toolMode === 'text' ? 'text' : (isDrawingTool(toolMode) || toolMode === 'pen') ? 'crosshair' : 'default', touchAction: (isDrawingTool(toolMode) || toolMode === 'pen') ? 'none' : 'auto' }}
+              onPointerDown={handleCanvasPointerDown}
+              onPointerMove={handleCanvasPointerMove}
+              onPointerUp={handleCanvasPointerUp}
+              aria-label={`PDF page ${currentPage}`}
+              role="img"
+            />
 
         {/* Shape/annotation previews */}
         {editorState.objects
@@ -1512,10 +1614,11 @@ export default function EditPdfPage() {
                 width: r.width + 4,
                 height: r.height + 4,
                 cursor: 'text',
-                background: isHovered ? 'rgba(59,130,246,0.15)' : 'transparent',
-                border: isHovered ? '1px solid rgba(59,130,246,0.5)' : '1px solid transparent',
+                background: isHovered ? 'rgba(59,130,246,0.12)' : 'transparent',
+                border: isHovered ? '1.5px solid rgba(59,130,246,0.7)' : '1px dashed rgba(59,130,246,0.3)',
                 borderRadius: 2,
                 zIndex: 5,
+                transition: 'border-color 0.1s, background 0.1s',
               }}
               onMouseEnter={() => setHoveredTextId(item.id)}
               onMouseLeave={() => setHoveredTextId(null)}
@@ -1523,36 +1626,58 @@ export default function EditPdfPage() {
             />
           );
         })}
+
+        {/* Inline text editor */}
+        {textEditId && (() => {
+          const obj = editorState.objects.find((o) => o.id === textEditId);
+          if (!obj || obj.type !== 'text') return null;
+          return (
+            <InlineTextEditor
+              obj={obj as TextObject}
+              pageScale={pageScale}
+              pageDims={pageDims}
+              onCommit={(text) => {
+                setEditorState((s) => { pushHistory(s); return updateObject(s, textEditId, { text }); });
+              }}
+              onClose={() => setTextEditId(null)}
+            />
+          );
+        })()}
       </div>
 
-      {/* Object count summary */}
-      {editorState.objects.length > 0 && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 px-1">
-          {editorState.objects.filter((o) => o.type === 'text').length} text, {' '}
-          {editorState.objects.filter((o) => o.type === 'image').length} image, {' '}
-          {editorState.objects.filter((o) => o.type === 'rect' || o.type === 'ellipse' || o.type === 'line' || o.type === 'arrow').length} shape, {' '}
-          {editorState.objects.filter((o) => o.type === 'highlight' || o.type === 'underline' || o.type === 'strikethrough').length} mark, {' '}
-          {editorState.objects.filter((o) => o.type === 'stroke').length} stroke, {' '}
-          {editorState.objects.filter((o) => o.type === 'whiteout').length} whiteout, {' '}
-          {editorState.objects.filter((o) => o.type === 'sticky' || o.type === 'callout').length} note
-          {' '}across {new Set(editorState.objects.map((o) => o.pageIndex)).size} page{new Set(editorState.objects.map((o) => o.pageIndex)).size !== 1 ? 's' : ''}
-        </p>
-      )}
+          {/* Object count summary */}
+          {editorState.objects.length > 0 && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 px-1">
+              {editorState.objects.filter((o) => o.type === 'text').length} text,{' '}
+              {editorState.objects.filter((o) => o.type === 'image').length} image,{' '}
+              {editorState.objects.filter((o) => o.type === 'rect' || o.type === 'ellipse' || o.type === 'line' || o.type === 'arrow').length} shape,{' '}
+              {editorState.objects.filter((o) => o.type === 'highlight' || o.type === 'underline' || o.type === 'strikethrough').length} mark,{' '}
+              {editorState.objects.filter((o) => o.type === 'stroke').length} stroke,{' '}
+              {editorState.objects.filter((o) => o.type === 'whiteout').length} whiteout,{' '}
+              {editorState.objects.filter((o) => o.type === 'sticky' || o.type === 'callout').length} note
+              {' '}across {new Set(editorState.objects.map((o) => o.pageIndex)).size} page{new Set(editorState.objects.map((o) => o.pageIndex)).size !== 1 ? 's' : ''}
+            </p>
+          )}
 
-      {/* Text edit modal */}
-      {textEditId && (() => {
-        const obj = editorState.objects.find((o) => o.id === textEditId);
-        if (!obj || obj.type !== 'text') { setTextEditId(null); return null; }
-        return (
-          <TextEditModal
-            obj={obj as TextObject}
-            onSave={(patch) => {
-              setEditorState((s) => { pushHistory(s); return updateObject(s, textEditId, patch as Partial<EditorObject>); });
-            }}
-            onClose={() => setTextEditId(null)}
+        </div>{/* end left column */}
+
+        {/* Right sidebar */}
+        <div className="w-64 shrink-0 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden" style={{ minHeight: 400 }}>
+          <SidebarPanel
+            obj={selectedObj}
+            onUpdate={handleUpdate}
+            onDelete={handleDelete}
+            onDuplicate={(id) => setEditorState((s) => { pushHistory(s); return duplicateObject(s, id); })}
+            onBringForward={(id) => setEditorState((s) => bringForward(s, id))}
+            onSendBackward={(id) => setEditorState((s) => sendBackward(s, id))}
+            onBringToFront={(id) => setEditorState((s) => bringToFront(s, id))}
+            onSendToBack={(id) => setEditorState((s) => sendToBack(s, id))}
+            onEditText={(id) => setTextEditId(id)}
+            onEditNote={(id) => setAnnotEditId(id)}
+            onReplaceImage={handleReplaceImage}
           />
-        );
-      })()}
+        </div>
+      </div>{/* end two-column flex */}
 
       {/* Annotation edit modal (sticky/callout) */}
       {annotEditId && (() => {
