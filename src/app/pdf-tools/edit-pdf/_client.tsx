@@ -115,9 +115,10 @@ async function extractPageTextItems(
     const scaleY = Math.abs(t[3]);
     const fontSize = Math.max(scaleX, scaleY);
     const x = t[4];
-    // pdfjs returns Y from bottom; item.height is the glyph height
-    const itemH = (item as { height?: number }).height ?? fontSize;
-    const y = t[5] - itemH; // bottom of bounding box in PDF coords
+    // t[5] is the baseline Y in PDF coords (bottom-left origin).
+    // Use fontSize as the glyph height; y = baseline - fontSize gives the bottom of the glyph.
+    const itemH = fontSize;
+    const y = t[5] - itemH;
     const w = (item as { width?: number }).width ?? scaleX * item.str.length;
     items.push({ id: `pdftext-${idx++}`, text: item.str, x, y, width: w, height: itemH, fontSize });
   }
@@ -723,19 +724,28 @@ export default function EditPdfPage() {
   // ─── Edit existing PDF text ───────────────────────────────────────────────────
 
   const handleEditPdfText = useCallback((item: PdfTextItem) => {
-    // Cover the original text with a white rectangle, then add an editable text object
+    // Cover the original text with a white rectangle, then add an editable text object.
+    // pdfjs item.height is the advance height (line-spacing) which is often larger than
+    // the visual glyph. Use fontSize for the visual height and add generous padding so
+    // the cover fully hides the original regardless of font metrics.
     const coverId = crypto.randomUUID();
     const textId = crypto.randomUUID();
     const pageIdx = currentPage - 1;
-    const padding = 1; // small padding to fully cover the glyph
+    // Use the glyph visual height: fontSize with some ascender/descender room
+    const visualH = item.fontSize * 1.3;
+    // Align the bottom of the cover with the bottom of the pdfjs bounding box (item.y)
+    // item.y is already bottom-of-bbox in PDF coords, so the cover spans [item.y, item.y + visualH]
+    const coverY = item.y;
+    const padX = 2;
+    const padY = 2;
     const cover: Omit<WhiteoutObject, 'zIndex'> = {
       id: coverId,
       type: 'whiteout',
       pageIndex: pageIdx,
-      x: item.x - padding,
-      y: item.y - padding,
-      width: item.width + padding * 2,
-      height: item.height + padding * 2,
+      x: item.x - padX,
+      y: coverY - padY,
+      width: item.width + padX * 2,
+      height: visualH + padY * 2,
       fillColor: '#ffffff',
       fillOpacity: 1,
       borderColor: '#ffffff',
@@ -746,10 +756,10 @@ export default function EditPdfPage() {
       id: textId,
       type: 'text',
       pageIndex: pageIdx,
-      x: item.x - padding,
-      y: item.y - padding,
-      width: item.width + padding * 2,
-      height: item.height + padding * 2,
+      x: item.x - padX,
+      y: coverY - padY,
+      width: item.width + padX * 2,
+      height: visualH + padY * 2,
       text: item.text,
       fontFamily: 'Helvetica',
       fontSize: item.fontSize,
