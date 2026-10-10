@@ -3,6 +3,7 @@ import { getEnabledTools, getCategories } from '@/lib/registry';
 import { getDatasets } from '@/lib/datasets';
 import { getAllIndexablePdfToolPaths } from '@/lib/seo/pdf-tools';
 import { SITE_URL } from '@/lib/seo/site-config';
+import { CALCULATORS } from '@/lib/calculators/catalog';
 
 const BUILD_DATE = new Date();
 
@@ -26,6 +27,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const categories = getCategories();
   const datasets = getDatasets();
   const indexablePdfPaths = getAllIndexablePdfToolPaths();
+  const calculatorEntries: MetadataRoute.Sitemap = CALCULATORS.map((calculator) => ({
+    url: `${SITE_URL}/calculators/${calculator.slug}`,
+    lastModified: BUILD_DATE,
+    changeFrequency: 'monthly',
+    priority: 0.7,
+  }));
 
   const toolEntries: MetadataRoute.Sitemap = tools.map((tool) => ({
     url: `${SITE_URL}/tools/${tool.slug}`,
@@ -61,6 +68,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE_URL}/tools`, lastModified: BUILD_DATE, changeFrequency: 'weekly', priority: 0.9 },
     { url: `${SITE_URL}/datasets`, lastModified: BUILD_DATE, changeFrequency: 'weekly', priority: 0.9 },
     { url: `${SITE_URL}/pdf-tools`, lastModified: BUILD_DATE, changeFrequency: 'weekly', priority: 0.95 },
+    { url: `${SITE_URL}/calculators`, lastModified: BUILD_DATE, changeFrequency: 'weekly', priority: 0.9 },
     { url: `${SITE_URL}/donate`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.5 },
     { url: `${SITE_URL}/about`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.4 },
     { url: `${SITE_URL}/contact`, lastModified: BUILD_DATE, changeFrequency: 'monthly', priority: 0.3 },
@@ -71,6 +79,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     ...staticPages,
     ...pdfToolEntries,
+    ...calculatorEntries,
     ...categoryEntries,
     ...toolEntries,
     ...datasetEntries,
