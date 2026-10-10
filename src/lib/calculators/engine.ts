@@ -70,9 +70,14 @@ export function getCalculatorFields(calculator: CalculatorEntry): CalculatorFiel
       return [...fields('income', 'taxRate')];
     case 'salary-calculator':
       return [number('salary', 'Salary amount', 90000), select('period', 'Salary period', [{label:'Annual',value:'annual'},{label:'Monthly',value:'monthly'},{label:'Biweekly',value:'biweekly'},{label:'Weekly',value:'weekly'},{label:'Hourly',value:'hourly'}], 'annual'), number('hoursPerWeek', 'Hours per week', 40)];
-    case 'interest-calculator': case 'simple-interest-calculator': case 'compound-interest-calculator':
-    case 'cd-calculator': case 'bond-calculator':
+    case 'interest-calculator': case 'simple-interest-calculator':
+      return [...fields('principal', 'rate', 'years')];
+    case 'compound-interest-calculator':
       return [...fields('principal', 'rate', 'years'), number('compounds', 'Compounds per year', 12, { min: 1, max: 365, step: 1 }), number('contribution', 'Additional yearly contribution', 0)];
+    case 'cd-calculator':
+      return [...fields('principal', 'rate', 'years'), number('compounds', 'Compounds per year', 12, { min: 1, max: 365, step: 1 })];
+    case 'bond-calculator':
+      return [...fields('principal', 'rate', 'years'), number('price', 'Current market price', 10000)];
     case 'sales-tax-calculator':
       return [...fields('price', 'taxRate'), select('mode', 'Calculation', [{label:'Add tax to price',value:'add'},{label:'Find tax included in total',value:'included'}], 'add')];
     case 'house-affordability-calculator':
