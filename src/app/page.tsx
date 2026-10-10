@@ -91,6 +91,17 @@ export default function HomePage() {
               </div>
             </Link>
 
+            <Link
+              href="/calculators"
+              className="group flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-5 transition-all hover:shadow-sm dark:border-emerald-900 dark:bg-emerald-950/40"
+            >
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-lg font-bold text-emerald-700 dark:bg-gray-900 dark:text-emerald-300" aria-hidden="true">∑</span>
+              <div>
+                <h3 className="text-sm font-semibold text-emerald-800 group-hover:underline dark:text-emerald-300">Calculators</h3>
+                <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">75 free finance, health, math and everyday calculators</p>
+              </div>
+            </Link>
+
             {categories.map((cat) => (
               <CategoryCard
                 key={cat.id}
