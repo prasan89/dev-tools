@@ -71,7 +71,7 @@ export function getCalculatorFields(calculator: CalculatorEntry): CalculatorFiel
     case 'salary-calculator':
       return [number('salary', 'Salary amount', 90000), select('period', 'Salary period', [{label:'Annual',value:'annual'},{label:'Monthly',value:'monthly'},{label:'Biweekly',value:'biweekly'},{label:'Weekly',value:'weekly'},{label:'Hourly',value:'hourly'}], 'annual'), number('hoursPerWeek', 'Hours per week', 40)];
     case 'interest-calculator': case 'simple-interest-calculator': case 'compound-interest-calculator':
-    case 'cd-calculator': case 'interest-rate-calculator': case 'bond-calculator':
+    case 'cd-calculator': case 'bond-calculator':
       return [...fields('principal', 'rate', 'years'), number('compounds', 'Compounds per year', 12, { min: 1, max: 365, step: 1 }), number('contribution', 'Additional yearly contribution', 0)];
     case 'sales-tax-calculator':
       return [...fields('price', 'taxRate'), select('mode', 'Calculation', [{label:'Add tax to price',value:'add'},{label:'Find tax included in total',value:'included'}], 'add')];
@@ -83,6 +83,8 @@ export function getCalculatorFields(calculator: CalculatorEntry): CalculatorFiel
       return [number('monthlyRent','Monthly rent',1800),number('homePrice','Home price',350000),number('downPayment','Down payment',70000),number('rate','Mortgage rate (%)',6.5,{max:100,step:0.1}),number('years','Mortgage term (years)',30),number('monthlyOwnership','Other monthly ownership costs',500)];
     case 'roi-calculator':
       return [number('initial','Initial investment',10000),number('finalValue','Final value',12500),number('fee','Fees / costs',0)];
+    case 'interest-rate-calculator':
+      return [number('principal','Starting amount',10000),number('futureValue','Ending amount',15000),number('years','Years invested',5,{min:0.1,max:100,step:0.1})];
     case 'apr-calculator':
       return [number('principal','Amount borrowed',20000),number('rate','Nominal annual rate (%)',8,{max:100,step:0.1}),number('years','Term in years',5),number('fee','Upfront fees',500)];
     case 'macro-calculator':
@@ -191,7 +193,7 @@ export function calculate(slug: string, v: CalculatorValues): { title: string; l
     case 'salary-calculator': {const salary=n(v,'salary');const factor=s(v,'period','annual');const annual=factor==='monthly'?salary*12:factor==='biweekly'?salary*26:factor==='weekly'?salary*52:factor==='hourly'?salary*n(v,'hoursPerWeek',40)*52:salary;return result('Salary conversion','Annual: '+money(annual),'Monthly: '+money(annual/12),'Biweekly: '+money(annual/26),'Hourly estimate: '+money(annual/(52*n(v,'hoursPerWeek',40))));}
     case 'interest-calculator': case 'simple-interest-calculator': {const interest=principal*rate/100*years;return result('Simple interest','Interest: '+money(interest),'Principal plus interest: '+money(principal+interest));}
     case 'compound-interest-calculator': case 'cd-calculator': {const compounds=Math.max(1,n(v,'compounds',12));const future=principal*Math.pow(1+rate/100/compounds,compounds*years);return result('Compound growth','Future value: '+money(future),'Interest earned: '+money(future-principal),'Effective annual rate: '+fixed((Math.pow(1+rate/100/compounds,compounds)-1)*100)+'%');}
-    case 'interest-rate-calculator': {const future=n(v,'price',principal);const annual=(Math.pow(future/Math.max(principal,0.0001),1/Math.max(years,0.01))-1)*100;return result('Estimated annual rate',fixed(annual)+'% per year');}
+    case 'interest-rate-calculator': {const future=n(v,'futureValue',principal);const annual=(Math.pow(future/Math.max(principal,0.0001),1/Math.max(years,0.01))-1)*100;return result('Estimated annual rate',fixed(annual)+'% per year');}
     case 'bond-calculator': {const coupon=principal*rate/100;return result('Bond income','Annual coupon income: '+money(coupon),'Simple current yield: '+fixed(coupon/Math.max(n(v,'price',principal),0.01)*100)+'%','Excludes maturity value changes and reinvestment.');}
     case 'sales-tax-calculator': {const price=n(v,'price'),r=n(v,'taxRate')/100;const tax=s(v,'mode')==='included'?price-price/(1+r):price*r;return result('Sales tax','Tax amount: '+money(tax),'Total with tax: '+money(s(v,'mode')==='included'?price:price+tax),'Pre-tax price: '+money(s(v,'mode')==='included'?price/(1+r):price));}
     case 'house-affordability-calculator': {const monthly=n(v,'income')/12*n(v,'expenseRatio',28)/100-n(v,'monthlyDebts');const r=rate/1200;const principalMax=monthly>0?(r===0?monthly*months:monthly*(1-Math.pow(1+r,-months))/r):0;return result('Estimated home budget',money(principalMax+n(v,'downPayment'))+' including down payment','Estimated affordable mortgage: '+money(principalMax),'Based on your selected housing share; excludes taxes, insurance and maintenance.');}
