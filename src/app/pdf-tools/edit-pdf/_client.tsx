@@ -977,10 +977,15 @@ export default function EditPdfPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pdfUrl]);
 
-  // ─── Extract PDF text items for current page ──────────────────────────────────
-
+  // ─── Extract PDF text items only while the user is in text-edit mode ──────────
+  // Keeping invisible hit targets for every glyph permanently mounted obscures the
+  // original document and makes dense PDFs look like overlapping blue boxes.
   useEffect(() => {
-    if (!pdfUrl || !pdfBytesRef.current) return;
+    if (!pdfUrl || !pdfBytesRef.current || toolMode !== 'select') {
+      setPdfTextItems([]);
+      setHoveredTextId(null);
+      return;
+    }
     setPdfTextItems([]);
     const data = pdfBytesRef.current;
     let cancelled = false;
@@ -989,7 +994,7 @@ export default function EditPdfPage() {
     }).catch(() => {});
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pdfUrl, currentPage]);
+  }, [pdfUrl, currentPage, toolMode]);
 
   // ─── Canvas pointer — shape/annotation drawing ────────────────────────────────
 
@@ -1740,13 +1745,10 @@ export default function EditPdfPage() {
           />
         )}
 
-        {/* PDF text items — hover to reveal outline, click to edit */}
+        {/* Existing PDF text hit targets are active only while editing. */}
         {toolMode === 'select' && pdfTextItems.map((item) => {
-          // Use exact glyph height (fontSize) for hit targets — matches inline editor and PDF output
           const r = pdfRectToScreen(item.x, item.y, item.width, item.fontSize, pageScale, pageDims.heightPt);
           const isActive = activePdfEdit?.id === item.id;
-          const isHovered = hoveredTextId === item.id;
-
           if (isActive) {
             return (
               <PdfTextInlineEditor
@@ -1759,23 +1761,23 @@ export default function EditPdfPage() {
               />
             );
           }
-
           return (
             <div
               key={item.id}
-              title={item.text}
+              title="Click to edit this text"
               style={{
                 position: 'absolute',
-                left: r.left - 1,
-                top: r.top - 1,
-                width: r.width + 2,
-                height: r.height + 2,
+                left: r.left,
+                top: r.top,
+                width: Math.max(r.width, 3),
+                height: Math.max(r.height, 5),
                 cursor: 'text',
                 background: 'transparent',
-                border: isHovered ? '1.5px solid #2563eb' : 'none',
+                border: hoveredTextId === item.id ? '1px solid rgba(37,99,235,.85)' : '1px solid transparent',
                 borderRadius: 2,
                 zIndex: 5,
                 boxSizing: 'border-box',
+                transition: 'border-color .12s ease, background-color .12s ease',
               }}
               onMouseEnter={() => setHoveredTextId(item.id)}
               onMouseLeave={() => setHoveredTextId(null)}
