@@ -1,5 +1,7 @@
 'use client';
 
+import './editor.css';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PdfToolLayout } from '@/components/pdf/PdfToolLayout';
 import { PdfDropzone } from '@/components/pdf/PdfDropzone';
@@ -1439,12 +1441,12 @@ export default function EditPdfPage() {
   return (
     <PdfToolLayout title="PDF Editor" description="Add text, images, shapes, and annotations. Nothing leaves your browser.">
       {/* Two-column layout: left = toolbar + canvas, right = sidebar */}
-      <div className="flex gap-3 items-start">
+      <div className="pdf-editor-shell flex flex-col gap-4 lg:flex-row lg:items-start">
         {/* Left column */}
-        <div className="flex-1 min-w-0 space-y-2">
+        <div className="pdf-editor-main flex-1 min-w-0 space-y-3">
 
           {/* Toolbar — two rows: tools top, actions bottom */}
-          <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden">
+          <div className="pdf-editor-toolbar rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
             {/* Row 1: tool groups */}
             <div className="flex flex-wrap items-center gap-1 p-2 border-b border-gray-100 dark:border-gray-800">
               {toolBtn('select', 'Select')}
@@ -1530,7 +1532,7 @@ export default function EditPdfPage() {
           )}
 
           {/* Canvas area */}
-          <div className="relative inline-block border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm bg-white">
+          <div className="pdf-editor-canvas relative mx-auto w-fit max-w-full border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden shadow-md bg-white">
             {rendering && (
               <div className="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-gray-900/80 z-10">
                 <span className="text-sm text-gray-500" role="status">Loading page…</span>
@@ -1817,7 +1819,7 @@ export default function EditPdfPage() {
         </div>{/* end left column */}
 
         {/* Right sidebar */}
-        <div className="w-64 shrink-0 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden" style={{ minHeight: 400 }}>
+        <div className="pdf-editor-sidebar w-full lg:w-72 lg:shrink-0 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden shadow-sm lg:sticky lg:top-4" style={{ minHeight: 240 }}>
           <SidebarPanel
             obj={selectedObj}
             onUpdate={handleUpdate}
