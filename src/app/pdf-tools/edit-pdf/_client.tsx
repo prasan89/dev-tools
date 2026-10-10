@@ -1500,9 +1500,9 @@ export default function EditPdfPage() {
           </div>
 
           {/* Mode hint */}
-          {toolMode === 'select' && pdfTextItems.length > 0 && (
+          {toolMode === 'select' && (
             <p className="text-xs text-gray-500 dark:text-gray-400 px-1" role="status">
-              Click existing text to edit it inline. Double-click added text boxes to edit.
+              Select an added object to move or resize it. To edit existing PDF text, click the text on the page.
             </p>
           )}
           {toolMode !== 'select' && (
