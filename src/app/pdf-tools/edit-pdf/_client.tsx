@@ -1,5 +1,7 @@
 'use client';
 
+import './editor.css';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PdfToolLayout } from '@/components/pdf/PdfToolLayout';
 import { PdfDropzone } from '@/components/pdf/PdfDropzone';
@@ -975,10 +977,15 @@ export default function EditPdfPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pdfUrl]);
 
-  // ─── Extract PDF text items for current page ──────────────────────────────────
-
+  // ─── Extract PDF text items only while the user is in text-edit mode ──────────
+  // Keeping invisible hit targets for every glyph permanently mounted obscures the
+  // original document and makes dense PDFs look like overlapping blue boxes.
   useEffect(() => {
-    if (!pdfUrl || !pdfBytesRef.current) return;
+    if (!pdfUrl || !pdfBytesRef.current || toolMode !== 'select') {
+      setPdfTextItems([]);
+      setHoveredTextId(null);
+      return;
+    }
     setPdfTextItems([]);
     const data = pdfBytesRef.current;
     let cancelled = false;
@@ -987,7 +994,7 @@ export default function EditPdfPage() {
     }).catch(() => {});
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pdfUrl, currentPage]);
+  }, [pdfUrl, currentPage, toolMode]);
 
   // ─── Canvas pointer — shape/annotation drawing ────────────────────────────────
 
@@ -1439,12 +1446,12 @@ export default function EditPdfPage() {
   return (
     <PdfToolLayout title="PDF Editor" description="Add text, images, shapes, and annotations. Nothing leaves your browser.">
       {/* Two-column layout: left = toolbar + canvas, right = sidebar */}
-      <div className="flex gap-3 items-start">
+      <div className="pdf-editor-shell flex flex-col gap-4 lg:flex-row lg:items-start">
         {/* Left column */}
-        <div className="flex-1 min-w-0 space-y-2">
+        <div className="pdf-editor-main flex-1 min-w-0 space-y-3">
 
           {/* Toolbar — two rows: tools top, actions bottom */}
-          <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden">
+          <div className="pdf-editor-toolbar rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
             {/* Row 1: tool groups */}
             <div className="flex flex-wrap items-center gap-1 p-2 border-b border-gray-100 dark:border-gray-800">
               {toolBtn('select', 'Select')}
@@ -1493,9 +1500,9 @@ export default function EditPdfPage() {
           </div>
 
           {/* Mode hint */}
-          {toolMode === 'select' && pdfTextItems.length > 0 && (
+          {toolMode === 'select' && (
             <p className="text-xs text-gray-500 dark:text-gray-400 px-1" role="status">
-              Click existing text to edit it inline. Double-click added text boxes to edit.
+              Select an added object to move or resize it. To edit existing PDF text, click the text on the page.
             </p>
           )}
           {toolMode !== 'select' && (
@@ -1530,7 +1537,7 @@ export default function EditPdfPage() {
           )}
 
           {/* Canvas area */}
-          <div className="relative inline-block border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm bg-white">
+          <div className="pdf-editor-canvas relative mx-auto w-fit max-w-full border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden shadow-md bg-white">
             {rendering && (
               <div className="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-gray-900/80 z-10">
                 <span className="text-sm text-gray-500" role="status">Loading page…</span>
@@ -1738,13 +1745,10 @@ export default function EditPdfPage() {
           />
         )}
 
-        {/* PDF text items — hover to reveal outline, click to edit */}
+        {/* Existing PDF text hit targets are active only while editing. */}
         {toolMode === 'select' && pdfTextItems.map((item) => {
-          // Use exact glyph height (fontSize) for hit targets — matches inline editor and PDF output
           const r = pdfRectToScreen(item.x, item.y, item.width, item.fontSize, pageScale, pageDims.heightPt);
           const isActive = activePdfEdit?.id === item.id;
-          const isHovered = hoveredTextId === item.id;
-
           if (isActive) {
             return (
               <PdfTextInlineEditor
@@ -1757,23 +1761,23 @@ export default function EditPdfPage() {
               />
             );
           }
-
           return (
             <div
               key={item.id}
-              title={item.text}
+              title="Click to edit this text"
               style={{
                 position: 'absolute',
-                left: r.left - 1,
-                top: r.top - 1,
-                width: r.width + 2,
-                height: r.height + 2,
+                left: r.left,
+                top: r.top,
+                width: Math.max(r.width, 3),
+                height: Math.max(r.height, 5),
                 cursor: 'text',
                 background: 'transparent',
-                border: isHovered ? '1.5px solid #2563eb' : 'none',
+                border: hoveredTextId === item.id ? '1px solid rgba(37,99,235,.85)' : '1px solid transparent',
                 borderRadius: 2,
                 zIndex: 5,
                 boxSizing: 'border-box',
+                transition: 'border-color .12s ease, background-color .12s ease',
               }}
               onMouseEnter={() => setHoveredTextId(item.id)}
               onMouseLeave={() => setHoveredTextId(null)}
@@ -1817,7 +1821,7 @@ export default function EditPdfPage() {
         </div>{/* end left column */}
 
         {/* Right sidebar */}
-        <div className="w-64 shrink-0 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden" style={{ minHeight: 400 }}>
+        <div className="pdf-editor-sidebar w-full lg:w-72 lg:shrink-0 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden shadow-sm lg:sticky lg:top-4" style={{ minHeight: 240 }}>
           <SidebarPanel
             obj={selectedObj}
             onUpdate={handleUpdate}

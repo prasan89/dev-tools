@@ -1,0 +1,18 @@
+/* PDF editor workspace — polished, responsive editing surface */
+.pdf-editor-shell { width: 100%; }
+.pdf-editor-main { min-width: 0; }
+.pdf-editor-toolbar { position: relative; }
+.pdf-editor-toolbar button { transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease; }
+.pdf-editor-toolbar button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.pdf-editor-canvas { max-width: 100%; }
+.pdf-editor-canvas > canvas:first-of-type { max-width: 100%; height: auto; }
+.pdf-editor-sidebar { max-height: min(76vh, 720px); overflow: auto; }
+@media (max-width: 1023px) {
+  .pdf-editor-shell { gap: 1rem; }
+  .pdf-editor-sidebar { max-height: none; }
+}
+@media (max-width: 640px) {
+  .pdf-editor-toolbar .flex.flex-wrap { gap: .375rem; }
+  .pdf-editor-toolbar button { min-height: 34px; }
+  .pdf-editor-canvas { overflow: auto; }
+}
