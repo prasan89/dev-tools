@@ -192,7 +192,7 @@ function BoxHandles({
       style={{
         position: 'absolute',
         left: rect.left, top: rect.top, width: rect.width, height: rect.height,
-        outline: isSelected ? '2px solid #2563eb' : '1px dashed rgba(100,149,237,0.4)',
+        outline: isSelected ? '2px solid #2563eb' : 'none',
         boxSizing: 'border-box',
         cursor: 'move',
         userSelect: 'none',
@@ -433,7 +433,7 @@ function EllipseHandles({
       style={{
         position: 'absolute',
         left: rect.left, top: rect.top, width: rect.width, height: rect.height,
-        outline: isSelected ? '2px solid #2563eb' : '1px dashed rgba(100,149,237,0.4)',
+        outline: isSelected ? '2px solid #2563eb' : 'none',
         borderRadius: '50%',
         boxSizing: 'border-box',
         cursor: 'move',
@@ -618,7 +618,7 @@ function StickyNoteHandles({
       style={{
         position: 'absolute',
         left: rect.left, top: rect.top, width: Math.max(rect.width, 24), height: Math.max(rect.height, 24),
-        outline: isSelected ? '2px solid #2563eb' : '1px dashed rgba(251,191,36,0.6)',
+        outline: isSelected ? '2px solid #2563eb' : 'none',
         boxSizing: 'border-box',
         cursor: 'move',
         userSelect: 'none',
@@ -720,7 +720,7 @@ function CalloutHandles({
         style={{
           position: 'absolute',
           left: rect.left, top: rect.top, width: Math.max(rect.width, 40), height: Math.max(rect.height, 20),
-          outline: isSelected ? '2px solid #2563eb' : '1px dashed rgba(59,130,246,0.5)',
+          outline: isSelected ? '2px solid #2563eb' : 'none',
           boxSizing: 'border-box',
           cursor: 'move',
           userSelect: 'none',

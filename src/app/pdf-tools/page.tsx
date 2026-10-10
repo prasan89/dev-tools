@@ -95,6 +95,7 @@ const TOOL_CATEGORIES: ToolCategory[] = [
     tools: [
       { title: 'PDF to Text', description: 'Extract all text from a PDF. Copy or download the plain text. Your file stays in the browser.', href: '/pdf-tools/pdf-to-text', available: true },
       { title: 'PDF to Markdown', description: 'Convert PDF text content to Markdown format with headings and lists inferred from structure.', href: '/pdf-tools/pdf-to-markdown', available: true },
+      { title: 'PDF to Handwritten', description: 'Convert PDF text into a handwritten-style PDF using real handwriting fonts. Choose font, ink color, and paper style.', href: '/pdf-tools/pdf-to-handwritten', available: true },
       { title: 'OCR — Scan to Text', description: 'Run optical character recognition on a scanned PDF using Tesseract.js. No server, full privacy.', href: '/pdf-tools/ocr', available: true },
       { title: 'OCR to Searchable PDF', description: 'Add a hidden text layer to a scanned PDF so it becomes searchable and copyable.', href: '/pdf-tools/ocr-searchable-pdf', available: true },
       { title: 'OCR to Extracted Text', description: 'Extract text from a scanned PDF via OCR and download as a plain .txt file.', href: '/pdf-tools/ocr-text', available: true },

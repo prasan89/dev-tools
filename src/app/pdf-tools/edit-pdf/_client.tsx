@@ -53,14 +53,15 @@ interface PdfTextItem {
 
 // ─── Page rendering ────────────────────────────────────────────────────────────
 
-const PREVIEW_MAX_W = 760;
-const PREVIEW_MAX_H = 900;
+const PREVIEW_MAX_W = 860;
+const PREVIEW_MAX_H = 1000;
 
 async function renderPageToCanvas(
   pdfData: ArrayBuffer,
   pageNumber: number,
   canvas: HTMLCanvasElement,
-): Promise<{ widthPt: number; heightPt: number; rotation: number; scale: number }> {
+  userZoom: number,
+): Promise<{ widthPt: number; heightPt: number; rotation: number; scale: number; cssWidth: number; cssHeight: number }> {
   const pdfjs = await import('pdfjs-dist');
   if (!pdfjs.GlobalWorkerOptions.workerPort) {
     pdfjs.GlobalWorkerOptions.workerPort = new Worker('/pdf.worker.min.mjs', { type: 'module' });
@@ -72,10 +73,20 @@ async function renderPageToCanvas(
   const vpNatural = page.getViewport({ scale: 1, rotation: 0 });
   const widthPt = vpNatural.width;
   const heightPt = vpNatural.height;
-  const scale = Math.min(PREVIEW_MAX_W / widthPt, PREVIEW_MAX_H / heightPt, 2);
-  const viewport = page.getViewport({ scale, rotation });
+  // CSS scale: the logical pixel scale for layout and overlay positioning
+  const cssScale = Math.min(PREVIEW_MAX_W / widthPt, PREVIEW_MAX_H / heightPt, 2) * userZoom;
+  // DPR: render at device resolution for crisp output on Retina/HiDPI displays
+  const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
+  const physicalScale = cssScale * dpr;
+  const viewport = page.getViewport({ scale: physicalScale, rotation });
+  // Set physical canvas size (device pixels)
   canvas.width = Math.floor(viewport.width);
   canvas.height = Math.floor(viewport.height);
+  // Set CSS display size (logical pixels) — overlays align to these dimensions
+  const cssWidth = Math.floor(viewport.width / dpr);
+  const cssHeight = Math.floor(viewport.height / dpr);
+  canvas.style.width = `${cssWidth}px`;
+  canvas.style.height = `${cssHeight}px`;
   const ctx = canvas.getContext('2d');
   if (ctx) {
     ctx.fillStyle = '#ffffff';
@@ -84,7 +95,7 @@ async function renderPageToCanvas(
   }
   page.cleanup();
   doc.cleanup();
-  return { widthPt, heightPt, rotation, scale };
+  return { widthPt, heightPt, rotation, scale: cssScale, cssWidth, cssHeight };
 }
 
 // ─── Extract text items from pdfjs ────────────────────────────────────────────
@@ -238,14 +249,13 @@ function InlineTextEditor({
         color: obj.color,
         textAlign: obj.align,
         lineHeight: 1.2,
-        background: 'rgba(255,255,255,0.95)',
+        background: '#ffffff',
         border: '2px solid #2563eb',
         borderRadius: 3,
         padding: '2px 4px',
         resize: 'none',
         outline: 'none',
         zIndex: 20,
-        boxShadow: '0 2px 8px rgba(37,99,235,0.2)',
         boxSizing: 'border-box',
         overflow: 'hidden',
       }}
@@ -255,6 +265,129 @@ function InlineTextEditor({
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit((e.target as HTMLTextAreaElement).value); onClose(); }
       }}
     />
+  );
+}
+
+// ─── Inline editor for existing PDF text — ihatepdf-style resizable box ────────────────
+
+function PdfTextInlineEditor({
+  item,
+  pageScale,
+  pageDims,
+  onCommit,
+  onCancel,
+}: {
+  item: PdfTextItem;
+  pageScale: number;
+  pageDims: { widthPt: number; heightPt: number };
+  onCommit: (text: string, widthPt: number, heightPt: number) => void;
+  onCancel: () => void;
+}) {
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  const committedRef = useRef(false);
+
+  const initialRect = pdfRectToScreen(
+    item.x, item.y,
+    Math.max(item.width, 120 / pageScale),
+    Math.max(item.fontSize * 1.5, 24 / pageScale),
+    pageScale, pageDims.heightPt,
+  );
+  const [boxLeft, setBoxLeft] = useState(initialRect.left);
+  const [boxTop, setBoxTop] = useState(initialRect.top);
+  const [boxW, setBoxW] = useState(Math.max(initialRect.width, 120));
+  const [boxH, setBoxH] = useState(Math.max(initialRect.height, 24));
+
+  const screenFontSize = item.fontSize * pageScale;
+
+  const resizeRef = useRef<{
+    handle: string; startX: number; startY: number;
+    startL: number; startT: number; startW: number; startH: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const ta = taRef.current;
+    if (!ta) return;
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+  }, []);
+
+  const commit = (val: string) => {
+    if (committedRef.current) return;
+    committedRef.current = true;
+    onCommit(val, boxW / pageScale, boxH / pageScale);
+  };
+
+  const startResize = (handle: string, e: React.PointerEvent) => {
+    e.stopPropagation(); e.preventDefault();
+    resizeRef.current = { handle, startX: e.clientX, startY: e.clientY, startL: boxLeft, startT: boxTop, startW: boxW, startH: boxH };
+    (e.target as Element).setPointerCapture(e.pointerId);
+  };
+  const onResizeMove = (e: React.PointerEvent) => {
+    const r = resizeRef.current;
+    if (!r) return;
+    const dx = e.clientX - r.startX;
+    const dy = e.clientY - r.startY;
+    const minW = 40; const minH = screenFontSize + 4;
+    let l = r.startL, t = r.startT, w = r.startW, h = r.startH;
+    if (r.handle.includes('e')) w = Math.max(minW, r.startW + dx);
+    if (r.handle.includes('s')) h = Math.max(minH, r.startH + dy);
+    if (r.handle.includes('w')) { w = Math.max(minW, r.startW - dx); l = r.startL + (r.startW - w); }
+    if (r.handle.includes('n')) { h = Math.max(minH, r.startH - dy); t = r.startT + (r.startH - h); }
+    setBoxLeft(l); setBoxTop(t); setBoxW(w); setBoxH(h);
+  };
+  const onResizeUp = (e: React.PointerEvent) => {
+    resizeRef.current = null;
+    (e.target as Element).releasePointerCapture(e.pointerId);
+  };
+
+  const moveRef = useRef<{ startX: number; startY: number; startL: number; startT: number } | null>(null);
+  const startMove = (e: React.PointerEvent) => {
+    e.stopPropagation(); e.preventDefault();
+    moveRef.current = { startX: e.clientX, startY: e.clientY, startL: boxLeft, startT: boxTop };
+    (e.target as Element).setPointerCapture(e.pointerId);
+  };
+  const onMoveMove = (e: React.PointerEvent) => {
+    const m = moveRef.current;
+    if (!m) return;
+    setBoxLeft(m.startL + e.clientX - m.startX);
+    setBoxTop(m.startT + e.clientY - m.startY);
+  };
+  const onMoveUp = (e: React.PointerEvent) => {
+    moveRef.current = null;
+    (e.target as Element).releasePointerCapture(e.pointerId);
+  };
+
+  const hsz = 8;
+  const handles: { id: string; style: React.CSSProperties }[] = [
+    { id: 'nw', style: { top: -hsz/2, left: -hsz/2, cursor: 'nw-resize' } },
+    { id: 'n',  style: { top: -hsz/2, left: '50%', transform: 'translateX(-50%)', cursor: 'n-resize' } },
+    { id: 'ne', style: { top: -hsz/2, right: -hsz/2, cursor: 'ne-resize' } },
+    { id: 'e',  style: { top: '50%', right: -hsz/2, transform: 'translateY(-50%)', cursor: 'e-resize' } },
+    { id: 'se', style: { bottom: -hsz/2, right: -hsz/2, cursor: 'se-resize' } },
+    { id: 's',  style: { bottom: -hsz/2, left: '50%', transform: 'translateX(-50%)', cursor: 's-resize' } },
+    { id: 'sw', style: { bottom: -hsz/2, left: -hsz/2, cursor: 'sw-resize' } },
+    { id: 'w',  style: { top: '50%', left: -hsz/2, transform: 'translateY(-50%)', cursor: 'w-resize' } },
+  ];
+
+  return (
+    <>
+      <div style={{ position: 'absolute', left: boxLeft, top: Math.max(0, boxTop - 38), display: 'flex', alignItems: 'center', gap: 4, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', padding: '4px 6px', zIndex: 40, pointerEvents: 'all', whiteSpace: 'nowrap' }} onMouseDown={(e) => e.stopPropagation()}>
+        <span style={{ fontSize: 11, color: '#64748b', fontFamily: 'sans-serif', paddingRight: 4 }}>{Math.round(item.fontSize)}pt</span>
+        <div style={{ width: 1, height: 16, background: '#e2e8f0' }} />
+        <button style={{ fontSize: 11, padding: '2px 8px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontFamily: 'sans-serif' }} onMouseDown={(e) => { e.preventDefault(); commit(taRef.current?.value ?? item.text); }}>Done</button>
+        <button style={{ fontSize: 11, padding: '2px 6px', background: 'transparent', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: 4, cursor: 'pointer', fontFamily: 'sans-serif' }} onMouseDown={(e) => { e.preventDefault(); onCancel(); }}>Cancel</button>
+      </div>
+      <div style={{ position: 'absolute', left: boxLeft, top: boxTop, width: boxW, height: boxH, border: '2px solid #2563eb', borderRadius: 2, boxShadow: '0 0 0 1px rgba(37,99,235,0.2)', boxSizing: 'border-box', zIndex: 30, background: 'transparent', pointerEvents: 'all' }}>
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 10, cursor: 'move', zIndex: 2 }} onPointerDown={startMove} onPointerMove={onMoveMove} onPointerUp={onMoveUp} />
+        <textarea ref={taRef} defaultValue={item.text} aria-label="Edit PDF text"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', fontSize: screenFontSize, fontFamily: 'Helvetica, Arial, sans-serif', fontWeight: 'normal', lineHeight: 1.25, color: '#000000', background: '#ffffff', border: 'none', outline: 'none', padding: '2px 4px', margin: 0, resize: 'none', boxSizing: 'border-box', caretColor: '#2563eb', zIndex: 1 }}
+          onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); onCancel(); } if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit(e.currentTarget.value); } }}
+        />
+        {handles.map((h) => (
+          <div key={h.id} style={{ position: 'absolute', width: hsz, height: hsz, background: '#2563eb', border: '2px solid white', borderRadius: 2, zIndex: 3, touchAction: 'none', ...h.style }} onPointerDown={(e) => startResize(h.id, e)} onPointerMove={onResizeMove} onPointerUp={onResizeUp} />
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -659,9 +792,11 @@ export default function EditPdfPage() {
   const [drawState, setDrawState] = useState<DrawState | null>(null);
   const [pdfTextItems, setPdfTextItems] = useState<PdfTextItem[]>([]);
   const [hoveredTextId, setHoveredTextId] = useState<string | null>(null);
+  const [activePdfEdit, setActivePdfEdit] = useState<PdfTextItem | null>(null);
 
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [saveResult, setSaveResult] = useState<EditOutcome | null>(null);
+  const [zoom, setZoom] = useState(1.0);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pdfUrlRef = useRef<string | null>(null);
@@ -724,43 +859,41 @@ export default function EditPdfPage() {
   // ─── Edit existing PDF text ───────────────────────────────────────────────────
 
   const handleEditPdfText = useCallback((item: PdfTextItem) => {
-    // Cover the original text with a white rectangle, then add an editable text object.
-    // pdfjs item.height is the advance height (line-spacing) which is often larger than
-    // the visual glyph. Use fontSize for the visual height and add generous padding so
-    // the cover fully hides the original regardless of font metrics.
-    const coverId = crypto.randomUUID();
-    const textId = crypto.randomUUID();
+    setSelectedId(null);
+    setActivePdfEdit(item);
+  }, []);
+
+  const handleCommitPdfEdit = useCallback((item: PdfTextItem, newText: string, newWidthPt: number, newHeightPt?: number) => {
     const pageIdx = currentPage - 1;
-    // Use the glyph visual height: fontSize with some ascender/descender room
-    const visualH = item.fontSize * 1.3;
-    // Align the bottom of the cover with the bottom of the pdfjs bounding box (item.y)
-    // item.y is already bottom-of-bbox in PDF coords, so the cover spans [item.y, item.y + visualH]
-    const coverY = item.y;
-    const padX = 2;
-    const padY = 2;
+    const padX = 3;
+    const padY = 3;
+    // Cover height: use provided newHeightPt if the user resized the box, else fontSize + pad
+    const coverH = newHeightPt ?? (item.fontSize + padY * 2);
+    const boxW = Math.max(item.width, newWidthPt) + padX * 2;
     const cover: Omit<WhiteoutObject, 'zIndex'> = {
-      id: coverId,
+      id: crypto.randomUUID(),
       type: 'whiteout',
       pageIndex: pageIdx,
       x: item.x - padX,
-      y: coverY - padY,
-      width: item.width + padX * 2,
-      height: visualH + padY * 2,
+      y: item.y - padY,
+      width: boxW,
+      height: coverH,
       fillColor: '#ffffff',
       fillOpacity: 1,
       borderColor: '#ffffff',
       borderWidth: 0,
       opacity: 1,
     };
+    const textH = newHeightPt ?? (item.fontSize * 2 + padY);
     const textObj: Omit<TextObject, 'zIndex'> = {
-      id: textId,
+      id: crypto.randomUUID(),
       type: 'text',
       pageIndex: pageIdx,
       x: item.x - padX,
-      y: coverY - padY,
-      width: item.width + padX * 2,
-      height: visualH + padY * 2,
-      text: item.text,
+      y: item.y - padY,
+      width: newWidthPt + padX * 2,
+      height: textH,
+      text: newText,
       fontFamily: 'Helvetica',
       fontSize: item.fontSize,
       bold: false,
@@ -776,10 +909,7 @@ export default function EditPdfPage() {
       s = addObject(s, textObj);
       return s;
     });
-    setTimeout(() => {
-      setSelectedId(textId);
-      setTextEditId(textId);
-    }, 0);
+    setActivePdfEdit(null);
   }, [currentPage, pushHistory]);
 
   // ─── File selected ────────────────────────────────────────────────────────────
@@ -810,16 +940,17 @@ export default function EditPdfPage() {
     setRendering(true); setLoadError(null);
     const canvas = canvasRef.current;
     const data = pdfBytesRef.current;
-    renderPageToCanvas(data, currentPage, canvas)
-      .then(({ widthPt, heightPt, scale }) => {
+    renderPageToCanvas(data, currentPage, canvas, zoom)
+      .then(({ widthPt, heightPt, scale, cssWidth, cssHeight }) => {
         setPageScale(scale);
         setPageDims({ widthPt, heightPt });
-        setCanvasSize({ width: canvas.width, height: canvas.height });
+        // canvasSize tracks CSS (logical) dimensions — overlays must match this, not physical pixels
+        setCanvasSize({ width: cssWidth, height: cssHeight });
       })
       .catch((err) => setLoadError(`Failed to render page: ${String(err).slice(0, 80)}`))
       .finally(() => setRendering(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pdfUrl, currentPage]);
+  }, [pdfUrl, currentPage, zoom]);
 
   // Load all page infos on first render
   useEffect(() => {
@@ -1216,6 +1347,14 @@ export default function EditPdfPage() {
     setSelectedId(null); setSaveState('idle'); setSaveResult(null); setLoadError(null);
   }, [revokePdfUrl]);
 
+  const handleReplaceImage = useCallback(async (id: string, file: File) => {
+    const decoded = await decodeImageFile(file).catch(() => null);
+    if (!decoded) return;
+    const { objectUrl, mimeType, naturalWidth, naturalHeight, embedBytes } = decoded;
+    const cur = editorState.objects.find((o) => o.id === id) as ImageObject | undefined;
+    setEditorState((s) => { pushHistory(s); return updateObject(s, id, { objectUrl, mimeType, naturalWidth, naturalHeight, embedBytes, height: (cur?.width ?? 100) / (naturalWidth / naturalHeight) } as Partial<ImageObject>); });
+  }, [editorState.objects, pushHistory]);
+
   const selectedObj = editorState.objects.find((o) => o.id === selectedId) ?? null;
   const pageCount = pageInfos.length || (pdfFile?.pageCount ?? 0);
 
@@ -1297,14 +1436,6 @@ export default function EditPdfPage() {
     >{label}</button>
   );
 
-  const handleReplaceImage = useCallback(async (id: string, file: File) => {
-    const decoded = await decodeImageFile(file).catch(() => null);
-    if (!decoded) return;
-    const { objectUrl, mimeType, naturalWidth, naturalHeight, embedBytes } = decoded;
-    const cur = editorState.objects.find((o) => o.id === id) as ImageObject | undefined;
-    setEditorState((s) => { pushHistory(s); return updateObject(s, id, { objectUrl, mimeType, naturalWidth, naturalHeight, embedBytes, height: (cur?.width ?? 100) / (naturalWidth / naturalHeight) } as Partial<ImageObject>); });
-  }, [editorState.objects, pushHistory]);
-
   return (
     <PdfToolLayout title="PDF Editor" description="Add text, images, shapes, and annotations. Nothing leaves your browser.">
       {/* Two-column layout: left = toolbar + canvas, right = sidebar */}
@@ -1312,55 +1443,52 @@ export default function EditPdfPage() {
         {/* Left column */}
         <div className="flex-1 min-w-0 space-y-2">
 
-          {/* Toolbar */}
-          <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-            {toolBtn('select', 'Select')}
-            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
-            {toolBtn('text', 'Text', 'Click to place text box')}
-            <button onClick={() => imageInputRef.current?.click()} className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">Image</button>
-            <input ref={imageInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" multiple className="sr-only" aria-label="Select image files" onChange={(e) => e.target.files && handleImageFiles(e.target.files)} />
-            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
-            {toolBtn('rect', '□ Rect', 'Draw rectangle')}
-            {toolBtn('ellipse', '○ Ellipse', 'Draw ellipse')}
-            {toolBtn('line', '╱ Line', 'Draw line')}
-            {toolBtn('arrow', '→ Arrow', 'Draw arrow')}
-            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
-            {toolBtn('highlight', '🟡 Highlight', 'Draw highlight')}
-            {toolBtn('underline', '‾ Underline', 'Draw underline')}
-            {toolBtn('strikethrough', '̶S̶ Strike', 'Draw strikethrough')}
-            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
-            {toolBtn('pen', '✏ Draw', 'Freehand drawing')}
-            <label className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400" title="Pen color">
-              <input type="color" value={penColor} onChange={(e) => setPenColor(e.target.value)} className="w-6 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" aria-label="Pen color" />
-            </label>
-            <label className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400" title="Pen width">
-              <input type="number" value={penWidth} onChange={(e) => setPenWidth(Math.max(1, Math.min(40, Number(e.target.value))))} min={1} max={40} className="w-10 rounded border border-gray-300 dark:border-gray-600 px-1 py-0.5 text-xs bg-white dark:bg-gray-900" aria-label="Pen width" />
-            </label>
-            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
-            {toolBtn('whiteout', '⬜ Whiteout', 'Draw whiteout cover')}
-            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
-            {toolBtn('sticky', '📝 Note', 'Click to place a sticky note')}
-            {toolBtn('callout', '💬 Callout', 'Click to place a text callout')}
-            <button
-              onClick={() => setShowAnnotPanel((v) => !v)}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap ${showAnnotPanel ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
-              title="Annotation panel"
-              aria-pressed={showAnnotPanel}
-            >
-              Annotations
-            </button>
-            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
-            <button onClick={undo} disabled={history.length === 0} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-40" aria-label="Undo">↩</button>
-            <button onClick={redo} disabled={future.length === 0} className="px-2 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-40" aria-label="Redo">↪</button>
-            <div className="ml-auto flex gap-1.5">
-              <button onClick={handleReset} className="px-3 py-1.5 rounded-lg text-xs border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400">Close</button>
-              <button
-                onClick={handleSave}
-                disabled={saveState === 'saving' || editorState.objects.length === 0}
-                className="px-4 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                {saveState === 'saving' ? 'Generating…' : 'Download PDF'}
-              </button>
+          {/* Toolbar — two rows: tools top, actions bottom */}
+          <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden">
+            {/* Row 1: tool groups */}
+            <div className="flex flex-wrap items-center gap-1 p-2 border-b border-gray-100 dark:border-gray-800">
+              {toolBtn('select', 'Select')}
+              <div className="h-4 w-px bg-gray-200 dark:bg-gray-700 mx-0.5" />
+              {toolBtn('text', 'Text')}
+              <button onClick={() => imageInputRef.current?.click()} className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800" title="Add image">Image</button>
+              <input ref={imageInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" multiple className="sr-only" aria-label="Select image files" onChange={(e) => e.target.files && handleImageFiles(e.target.files)} />
+              <div className="h-4 w-px bg-gray-200 dark:bg-gray-700 mx-0.5" />
+              {toolBtn('rect', 'Rect')}
+              {toolBtn('ellipse', 'Ellipse')}
+              {toolBtn('line', 'Line')}
+              {toolBtn('arrow', 'Arrow')}
+              <div className="h-4 w-px bg-gray-200 dark:bg-gray-700 mx-0.5" />
+              {toolBtn('highlight', 'Highlight')}
+              {toolBtn('underline', 'Underline')}
+              {toolBtn('strikethrough', 'Strike')}
+              <div className="h-4 w-px bg-gray-200 dark:bg-gray-700 mx-0.5" />
+              {toolBtn('pen', 'Draw')}
+              <input type="color" value={penColor} onChange={(e) => setPenColor(e.target.value)} className="w-6 h-6 p-0.5 rounded border border-gray-300 cursor-pointer" aria-label="Pen color" title="Pen color" />
+              <input type="number" value={penWidth} onChange={(e) => setPenWidth(Math.max(1, Math.min(40, Number(e.target.value))))} min={1} max={40} className="w-9 rounded border border-gray-300 dark:border-gray-600 px-1 py-0.5 text-xs bg-white dark:bg-gray-900" aria-label="Pen width" title="Pen width" />
+              <div className="h-4 w-px bg-gray-200 dark:bg-gray-700 mx-0.5" />
+              {toolBtn('whiteout', 'Whiteout')}
+              {toolBtn('sticky', 'Note')}
+              {toolBtn('callout', 'Callout')}
+            </div>
+            {/* Row 2: undo/redo + zoom + actions */}
+            <div className="flex items-center gap-1.5 px-2 py-1.5">
+              <button onClick={undo} disabled={history.length === 0} className="px-2 py-1 rounded text-xs border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-gray-800" aria-label="Undo" title="Undo (Ctrl+Z)">↩ Undo</button>
+              <button onClick={redo} disabled={future.length === 0} className="px-2 py-1 rounded text-xs border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-gray-800" aria-label="Redo" title="Redo (Ctrl+Y)">↪ Redo</button>
+              <div className="h-4 w-px bg-gray-200 dark:bg-gray-700 mx-0.5" />
+              <button onClick={() => setZoom((z) => Math.max(0.5, parseFloat((z - 0.25).toFixed(2))))} className="px-2 py-1 rounded text-xs border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800" aria-label="Zoom out">−</button>
+              <span className="text-xs text-gray-500 dark:text-gray-400 w-10 text-center tabular-nums select-none">{Math.round(zoom * 100)}%</span>
+              <button onClick={() => setZoom((z) => Math.min(3, parseFloat((z + 0.25).toFixed(2))))} className="px-2 py-1 rounded text-xs border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800" aria-label="Zoom in">+</button>
+              <button onClick={() => setZoom(1)} className="px-2 py-1 rounded text-xs border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800" aria-label="Reset zoom">Fit</button>
+              <div className="ml-auto flex items-center gap-1.5">
+                <button onClick={handleReset} className="px-3 py-1 rounded text-xs border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">Close</button>
+                <button
+                  onClick={handleSave}
+                  disabled={saveState === 'saving' || editorState.objects.length === 0}
+                  className="px-4 py-1 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {saveState === 'saving' ? 'Generating…' : 'Download PDF'}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1432,6 +1560,7 @@ export default function EditPdfPage() {
               );
             }
             if (obj.type === 'text') {
+              if (obj.id === textEditId) return null;
               const txt = obj as TextObject;
               const r = pdfRectToScreen(txt.x, txt.y, txt.width, txt.height, pageScale, pageDims.heightPt);
               return (
@@ -1598,7 +1727,7 @@ export default function EditPdfPage() {
             pageWidthPt={pageDims.widthPt}
             pageHeightPt={pageDims.heightPt}
             scale={pageScale}
-            selectedId={selectedId}
+            selectedId={textEditId ? null : selectedId}
             onSelect={setSelectedId}
             onUpdate={handleUpdate}
             onDelete={handleDelete}
@@ -1609,26 +1738,42 @@ export default function EditPdfPage() {
           />
         )}
 
-        {/* PDF text item click targets — shown in Select mode to allow editing existing text */}
+        {/* PDF text items — hover to reveal outline, click to edit */}
         {toolMode === 'select' && pdfTextItems.map((item) => {
-          const r = pdfRectToScreen(item.x, item.y, item.width, item.height, pageScale, pageDims.heightPt);
+          // Use exact glyph height (fontSize) for hit targets — matches inline editor and PDF output
+          const r = pdfRectToScreen(item.x, item.y, item.width, item.fontSize, pageScale, pageDims.heightPt);
+          const isActive = activePdfEdit?.id === item.id;
           const isHovered = hoveredTextId === item.id;
+
+          if (isActive) {
+            return (
+              <PdfTextInlineEditor
+                key={item.id}
+                item={item}
+                pageScale={pageScale}
+                pageDims={pageDims}
+                onCommit={(text, widthPt, heightPt) => handleCommitPdfEdit(item, text, widthPt, heightPt)}
+                onCancel={() => setActivePdfEdit(null)}
+              />
+            );
+          }
+
           return (
             <div
               key={item.id}
-              title={`Click to edit: "${item.text.slice(0, 40)}${item.text.length > 40 ? '…' : ''}"`}
+              title={item.text}
               style={{
                 position: 'absolute',
-                left: r.left - 2,
-                top: r.top - 2,
-                width: r.width + 4,
-                height: r.height + 4,
+                left: r.left - 1,
+                top: r.top - 1,
+                width: r.width + 2,
+                height: r.height + 2,
                 cursor: 'text',
-                background: isHovered ? 'rgba(59,130,246,0.12)' : 'transparent',
-                border: isHovered ? '1.5px solid rgba(59,130,246,0.7)' : '1px dashed rgba(59,130,246,0.3)',
+                background: 'transparent',
+                border: isHovered ? '1.5px solid #2563eb' : 'none',
                 borderRadius: 2,
                 zIndex: 5,
-                transition: 'border-color 0.1s, background 0.1s',
+                boxSizing: 'border-box',
               }}
               onMouseEnter={() => setHoveredTextId(item.id)}
               onMouseLeave={() => setHoveredTextId(null)}
@@ -1637,7 +1782,7 @@ export default function EditPdfPage() {
           );
         })}
 
-        {/* Inline text editor */}
+        {/* Inline text editor for added TextObjects */}
         {textEditId && (() => {
           const obj = editorState.objects.find((o) => o.id === textEditId);
           if (!obj || obj.type !== 'text') return null;

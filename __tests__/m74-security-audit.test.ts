@@ -186,6 +186,8 @@ describe('PDF lib network audit', () => {
       const content = fs.readFileSync(path.join(libDir, file), 'utf8');
       // Allow fetch in webPageToPdf (used to fetch external URLs for conversion - documented)
       if (file === 'webPageToPdf.ts') continue;
+      // Allow fetch in handwrittenPdf (fetches local /public/fonts/*.ttf — no user data leaves browser)
+      if (file === 'handwrittenPdf.ts') continue;
       if (/\bfetch\s*\(/.test(content)) {
         violations.push(file);
       }

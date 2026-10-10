@@ -304,6 +304,16 @@ const PDF_TOOLS_SEO: Record<string, PdfToolSeo> = {
     keywords: ['redact pdf', 'black out pdf text', 'pdf redaction tool', 'hide pdf content'],
     index: true,
   },
+  'pdf-to-handwritten': {
+    title: 'PDF to Handwritten — Convert PDF to Handwriting Style Online',
+    description:
+      'Convert your PDF text into a handwritten-style PDF using real handwriting fonts. Choose font, ink color, paper style, and line spacing. Free, browser-based, no uploads.',
+    path: '/pdf-tools/pdf-to-handwritten',
+    h1: 'PDF to Handwritten',
+    subtitle: 'Convert PDF text into a handwritten-style document with real handwriting fonts.',
+    keywords: ['pdf to handwritten', 'pdf handwriting converter', 'handwritten pdf', 'convert pdf to handwriting', 'pdf handwriting font'],
+    index: true,
+  },
   'pdf-to-text': {
     title: 'PDF to Text — Extract Text from PDF Online',
     description:
