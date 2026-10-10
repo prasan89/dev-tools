@@ -1,4 +1,4 @@
-import { CALCULATORS, CALCULATOR_CATEGORIES, getCalculatorFields } from '@/lib/calculators/catalog';
+import { CALCULATORS, CALCULATOR_CATEGORIES } from '@/lib/calculators/catalog';
 import { calculate, getCalculatorFields as getFields } from '@/lib/calculators/engine';
 
 describe('calculator catalog', () => {
