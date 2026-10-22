@@ -185,17 +185,38 @@ export default function EditPdfClient() {
       (event.currentTarget as HTMLDivElement).setPointerCapture(event.pointerId);
       return;
     }
+    // Added objects take precedence when the user clicks directly on one.
     const target = (event.target as HTMLElement).closest('[data-mark-id]') as HTMLElement | null;
     const id = target?.dataset.markId;
     if (id) {
       const mark = marks.find((item) => item.id === id);
       if (!mark) return;
       setSelectedId(id);
+      setSelectedExistingText(null);
       dragRef.current = { id, start: point, x: mark.x, y: mark.y };
       (event.currentTarget as HTMLDivElement).setPointerCapture(event.pointerId);
-    } else {
-      setSelectedId(null);
+      return;
     }
+
+    // Text selection must not depend on an invisible overlay receiving the
+    // click. Hit-test PDF.js text runs directly in PDF user-space coordinates.
+    if (tool === 'select') {
+      const hit = [...existingText].reverse().find((item) =>
+        item.page === page - 1 &&
+        point.x >= item.x - 3 &&
+        point.x <= item.x + item.width + 3 &&
+        point.y >= item.y - 3 &&
+        point.y <= item.y + item.height + 3
+      );
+      if (hit) {
+        setSelectedExistingText(hit);
+        setReplacementText(hit.text);
+        setSelectedId(null);
+        return;
+      }
+    }
+    setSelectedId(null);
+    setSelectedExistingText(null);
   };
 
   const onStagePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
