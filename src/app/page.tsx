@@ -91,6 +91,28 @@ export default function HomePage() {
               </div>
             </Link>
 
+            {/* Image Tools */}
+            <Link
+              href="/image-tools"
+              prefetch={false}
+              className="group flex flex-col gap-3 rounded-xl border p-5 border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/20 hover:shadow-sm transition-all"
+            >
+              <span
+                className="flex h-10 w-10 items-center justify-center rounded-lg text-lg font-bold bg-white dark:bg-gray-900 text-violet-600 dark:text-violet-400"
+                aria-hidden="true"
+              >
+                🖼️
+              </span>
+              <div>
+                <h3 className="font-semibold text-sm text-violet-700 dark:text-violet-400 group-hover:underline">
+                  Image Tools
+                </h3>
+                <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">
+                  Compress, resize, crop, convert and rotate images — free and private
+                </p>
+              </div>
+            </Link>
+
             {categories.map((cat) => (
               <CategoryCard
                 key={cat.id}

@@ -60,6 +60,9 @@ export function Header() {
           <Link href="/pdf-tools" prefetch={false} className="shrink-0 rounded-md px-3 py-1 text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors font-semibold">
             PDF Tools
           </Link>
+          <Link href="/image-tools" prefetch={false} className="shrink-0 rounded-md px-3 py-1 text-xs font-medium text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/30 transition-colors font-semibold">
+            Image Tools
+          </Link>
           {CATEGORIES.map((cat) => (
             <Link
               key={cat.id}

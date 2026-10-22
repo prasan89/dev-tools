@@ -56,6 +56,20 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: HIGH_PRIORITY_PDF_TOOLS.has(path) ? 0.85 : 0.75,
   }));
 
+  const imageToolPages: MetadataRoute.Sitemap = [
+    '/image-tools',
+    '/image-tools/compress',
+    '/image-tools/resize',
+    '/image-tools/crop',
+    '/image-tools/convert',
+    '/image-tools/rotate-flip',
+  ].map((path) => ({
+    url: `${SITE_URL}${path}`,
+    lastModified: BUILD_DATE,
+    changeFrequency: 'monthly' as const,
+    priority: path === '/image-tools' ? 0.9 : 0.8,
+  }));
+
   const staticPages: MetadataRoute.Sitemap = [
     { url: SITE_URL, lastModified: BUILD_DATE, changeFrequency: 'weekly', priority: 1 },
     { url: `${SITE_URL}/tools`, lastModified: BUILD_DATE, changeFrequency: 'weekly', priority: 0.9 },
@@ -70,6 +84,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   return [
     ...staticPages,
+    ...imageToolPages,
     ...pdfToolEntries,
     ...categoryEntries,
     ...toolEntries,
