@@ -191,6 +191,9 @@ export default function CompressClient() {
                 <span>Smaller file</span>
                 <span>Higher quality</span>
               </div>
+              <p className="mt-1 text-xs text-gray-400">
+                Quality affects JPEG and WebP. PNG uses lossless encoding, so this slider does not control its compression level.
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
