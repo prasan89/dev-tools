@@ -343,13 +343,20 @@ export default function CropClient() {
   const [error, setError] = useState('');
 
   const cleanup = useCallback(() => {
-    if (imgState) {
-      revokeObjectUrl(imgState.previewUrl);
-      if (imgState.outputUrl) revokeObjectUrl(imgState.outputUrl);
-    }
-    setImgState(null);
+    setImgState((current) => {
+      if (current) {
+        revokeObjectUrl(current.previewUrl);
+        if (current.outputUrl) revokeObjectUrl(current.outputUrl);
+      }
+      return null;
+    });
     setSelection(null);
-  }, [imgState]);
+    setCropX('');
+    setCropY('');
+    setCropW('');
+    setCropH('');
+    setError('');
+  }, []);
 
   useEffect(() => () => {
     if (imgState) {
