@@ -61,55 +61,66 @@ export default function CompressClient() {
 
   const processAll = useCallback(async () => {
     const pending = files.filter((f) => f.status === 'queued' || f.status === 'failed');
-    if (pending.length === 0) return;
+    if (pending.length === 0 || abortRef.current) return;
 
-    abortRef.current = new AbortController();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setProcessing(true);
 
     const opts: CompressOptions = {
       quality: quality / 100,
-      maxWidth: maxWidth ? parseInt(maxWidth, 10) : undefined,
-      maxHeight: maxHeight ? parseInt(maxHeight, 10) : undefined,
-      targetSizeKb: targetKb ? parseInt(targetKb, 10) : undefined,
+      maxWidth: maxWidth ? Number.parseInt(maxWidth, 10) : undefined,
+      maxHeight: maxHeight ? Number.parseInt(maxHeight, 10) : undefined,
+      targetSizeKb: targetKb ? Number.parseFloat(targetKb) : undefined,
     };
 
-    for (const item of pending) {
-      if (abortRef.current.signal.aborted) break;
+    try {
+      for (const item of pending) {
+        if (controller.signal.aborted) break;
 
-      setFiles((prev) =>
-        prev.map((f) => (f.id === item.id ? { ...f, status: 'processing' } : f)),
-      );
+        setFiles((prev) =>
+          prev.map((f) => (f.id === item.id ? { ...f, status: 'processing', error: undefined } : f)),
+        );
 
-      try {
-        const result = await compressImage(item.file, opts, abortRef.current.signal);
-        const outputUrl = createObjectUrl(result.blob);
-        setFiles((prev) =>
-          prev.map((f) =>
-            f.id === item.id
-              ? { ...f, status: 'done', result, outputUrl }
-              : f,
-          ),
-        );
-      } catch (err: unknown) {
-        if (abortRef.current?.signal.aborted) break;
-        setFiles((prev) =>
-          prev.map((f) =>
-            f.id === item.id
-              ? { ...f, status: 'failed', error: err instanceof Error ? err.message : String(err) }
-              : f,
-          ),
-        );
+        try {
+          const result = await compressImage(item.file, opts, controller.signal);
+          if (controller.signal.aborted) break;
+          const outputUrl = createObjectUrl(result.blob);
+          setFiles((prev) =>
+            prev.map((f) => {
+              if (f.id !== item.id) {
+                return f;
+              }
+              if (f.outputUrl) revokeObjectUrl(f.outputUrl);
+              return { ...f, status: 'done', result, outputUrl, error: undefined };
+            }),
+          );
+        } catch (err: unknown) {
+          if (controller.signal.aborted) break;
+          setFiles((prev) =>
+            prev.map((f) =>
+              f.id === item.id
+                ? { ...f, status: 'failed', error: err instanceof Error ? err.message : String(err) }
+                : f,
+            ),
+          );
+        }
+      }
+    } finally {
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setProcessing(false);
       }
     }
-
-    setProcessing(false);
   }, [files, quality, maxWidth, maxHeight, targetKb]);
 
   const cancelAll = useCallback(() => {
-    abortRef.current?.abort();
+    const controller = abortRef.current;
+    abortRef.current = null;
+    controller?.abort();
     setProcessing(false);
     setFiles((prev) =>
-      prev.map((f) => (f.status === 'processing' || f.status === 'queued' ? { ...f, status: 'queued' } : f)),
+      prev.map((f) => (f.status === 'processing' ? { ...f, status: 'queued' } : f)),
     );
   }, []);
 
@@ -129,10 +140,16 @@ export default function CompressClient() {
     }
     const { default: JSZip } = await import('jszip');
     const zip = new JSZip();
+    const filenameCounts = new Map<string, number>();
     for (const f of done) {
-      const resp = await fetch(f.outputUrl!);
-      const blob = await resp.blob();
-      zip.file(outputFilename(f.file.name, f.result!.format, '_compressed'), blob);
+      const filename = outputFilename(f.file.name, f.result!.format, '_compressed');
+      const count = filenameCounts.get(filename) ?? 0;
+      filenameCounts.set(filename, count + 1);
+      const uniqueFilename = count === 0
+        ? filename
+        : filename.replace(/(\.[^.]+)$/, `_${count + 1}$1`);
+      // Use the in-memory blob directly; no network fetch is needed for blob URLs.
+      zip.file(uniqueFilename, f.result!.blob);
     }
     const zipBlob = await zip.generateAsync({ type: 'blob' });
     const url = createObjectUrl(zipBlob);
@@ -174,6 +191,9 @@ export default function CompressClient() {
                 <span>Smaller file</span>
                 <span>Higher quality</span>
               </div>
+              <p className="mt-1 text-xs text-gray-400">
+                Quality affects JPEG and WebP. PNG uses lossless encoding, so this slider does not control its compression level.
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -225,7 +245,7 @@ export default function CompressClient() {
                 disabled={processing}
                 className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
               />
-              <p className="mt-1 text-xs text-gray-400">Iterates quality to approach target. Exact size is not guaranteed.</p>
+              <p className="mt-1 text-xs text-gray-400">JPEG and WebP quality is adjusted to approach the target. PNG uses lossless encoding, so its size target may not be achievable. Exact size is not guaranteed.</p>
             </div>
           </div>
 
@@ -276,8 +296,9 @@ export default function CompressClient() {
                   <button
                     type="button"
                     onClick={() => removeFile(item.id)}
+                    disabled={processing}
                     aria-label={`Remove ${item.file.name}`}
-                    className="p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    className="p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

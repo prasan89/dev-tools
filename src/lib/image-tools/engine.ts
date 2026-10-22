@@ -137,45 +137,89 @@ export async function compressImage(
 ): Promise<CompressResult> {
   signal?.throwIfAborted();
 
+  if (options.maxWidth !== undefined && (!Number.isFinite(options.maxWidth) || options.maxWidth <= 0)) {
+    throw new Error('Maximum width must be a positive number.');
+  }
+  if (options.maxHeight !== undefined && (!Number.isFinite(options.maxHeight) || options.maxHeight <= 0)) {
+    throw new Error('Maximum height must be a positive number.');
+  }
+  if (options.targetSizeKb !== undefined && (!Number.isFinite(options.targetSizeKb) || options.targetSizeKb <= 0)) {
+    throw new Error('Target size must be a positive number of kilobytes.');
+  }
+
   const bitmap = await loadImageBitmap(file);
-  signal?.throwIfAborted();
+  try {
+    signal?.throwIfAborted();
 
-  let { width, height } = bitmap;
-
-  if (options.maxWidth && width > options.maxWidth) {
-    height = Math.round((height * options.maxWidth) / width);
-    width = options.maxWidth;
-  }
-  if (options.maxHeight && height > options.maxHeight) {
-    width = Math.round((width * options.maxHeight) / height);
-    height = options.maxHeight;
-  }
-
-  const fmt = resolveFormat(file);
-  const mime = FORMAT_TO_MIME[fmt];
-  const canvas = createCanvas(width, height);
-  const ctx = getCtx(canvas);
-
-  if (fmt === 'jpeg') fillBackground(ctx, width, height, '#ffffff');
-  ctx.drawImage(bitmap, 0, 0, width, height);
-  bitmap.close();
-
-  signal?.throwIfAborted();
-
-  // If target size requested, binary-search the quality
-  let quality = options.quality;
-  if (options.targetSizeKb) {
-    const targetBytes = options.targetSizeKb * 1024;
-    let lo = 0.05;
-    let hi = 0.95;
-    let blob = await canvasToBlob(canvas, mime, quality);
-    for (let i = 0; i < 10 && Math.abs(blob.size - targetBytes) > 1024; i++) {
-      signal?.throwIfAborted();
-      quality = (lo + hi) / 2;
-      blob = await canvasToBlob(canvas, mime, quality);
-      if (blob.size > targetBytes) hi = quality;
-      else lo = quality;
+    const originalWidth = bitmap.width;
+    const originalHeight = bitmap.height;
+    if (originalWidth < 1 || originalHeight < 1) {
+      throw new Error('Image has invalid dimensions.');
     }
+
+    // Calculate one scale factor so max width and height are both respected.
+    const widthLimit = options.maxWidth ?? originalWidth;
+    const heightLimit = options.maxHeight ?? originalHeight;
+    const scale = Math.min(1, widthLimit / originalWidth, heightLimit / originalHeight);
+    const width = Math.max(1, Math.round(originalWidth * scale));
+    const height = Math.max(1, Math.round(originalHeight * scale));
+
+    // Use the file signature when available. Browsers sometimes provide an empty or
+    // incorrect MIME type for otherwise valid image files.
+    const fmt = (await detectFormatFromBytes(file)) ?? resolveFormat(file);
+    const mime = FORMAT_TO_MIME[fmt];
+    const canvas = createCanvas(width, height);
+    const ctx = getCtx(canvas);
+
+    if (fmt === 'jpeg') fillBackground(ctx, width, height, '#ffffff');
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    signal?.throwIfAborted();
+
+    const requestedQuality = Number.isFinite(options.quality)
+      ? Math.min(1, Math.max(0.01, options.quality))
+      : 0.8;
+
+    let blob: Blob;
+    if (options.targetSizeKb && fmt !== 'png') {
+      const targetBytes = Math.round(options.targetSizeKb * 1024);
+      let low = 0.05;
+      let high = 0.95;
+      let bestUnderTarget: Blob | null = null;
+      let bestUnderQuality = Number.NEGATIVE_INFINITY;
+      let closest: Blob | null = null;
+      let closestDelta = Number.POSITIVE_INFINITY;
+
+      // Binary-search lossy formats. Keep the closest result as a fallback, and
+      // prefer the highest-quality candidate that does not exceed the target.
+      for (let i = 0; i < 12; i += 1) {
+        signal?.throwIfAborted();
+        const quality = (low + high) / 2;
+        const candidate = await canvasToBlob(canvas, mime, quality);
+        const delta = Math.abs(candidate.size - targetBytes);
+        if (delta < closestDelta) {
+          closest = candidate;
+          closestDelta = delta;
+        }
+        if (candidate.size <= targetBytes) {
+          if (quality > bestUnderQuality) {
+            bestUnderTarget = candidate;
+            bestUnderQuality = quality;
+          }
+          low = quality;
+        } else {
+          high = quality;
+        }
+        // Do not stop on a slightly oversized candidate: a lower quality may still
+        // fit under the requested limit, which is preferable for target-size mode.
+        if (candidate.size <= targetBytes && delta <= Math.max(512, targetBytes * 0.01)) break;
+      }
+      blob = bestUnderTarget ?? closest ?? await canvasToBlob(canvas, mime, requestedQuality);
+    } else {
+      // PNG encoding is lossless; canvas quality does not control PNG file size.
+      blob = await canvasToBlob(canvas, mime, requestedQuality);
+    }
+
+    signal?.throwIfAborted();
     return {
       blob,
       outputWidth: width,
@@ -184,17 +228,9 @@ export async function compressImage(
       outputSize: blob.size,
       format: fmt,
     };
+  } finally {
+    bitmap.close();
   }
-
-  const blob = await canvasToBlob(canvas, mime, quality);
-  return {
-    blob,
-    outputWidth: width,
-    outputHeight: height,
-    originalSize: file.size,
-    outputSize: blob.size,
-    format: fmt,
-  };
 }
 
 /**
