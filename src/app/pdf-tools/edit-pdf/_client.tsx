@@ -133,10 +133,13 @@ async function extractPageTextItems(
     const measuredHeight = Math.abs((item as { height?: number }).height ?? 0);
     const fontSize = Math.max(1, measuredHeight || scaleY || scaleX);
     const x = t[4];
-    // t[5] is the baseline Y in PDF user space (bottom-left origin).
-    // Keep the hit target and inline editor anchored to the same glyph box.
+    // t[5] is the text baseline in PDF user space (bottom-left origin).
+    // Glyphs extend above the baseline by roughly 80% of the font size and
+    // below it by roughly 20%. The editor uses a bottom-left PDF rectangle,
+    // so include the descent in y; otherwise the box starts at the baseline
+    // and appears one full line too low over the original text.
     const itemH = fontSize;
-    const y = t[5] - itemH;
+    const y = t[5] - fontSize * 0.2;
     const w = Math.max(0, (item as { width?: number }).width ?? scaleX * item.str.length);
     items.push({ id: `pdftext-${idx++}`, text: item.str, x, y, width: w, height: itemH, fontSize });
   }
