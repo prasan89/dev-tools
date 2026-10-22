@@ -149,9 +149,9 @@ describe('ServiceWorker: non-blocking registration', () => {
     expect(src).not.toContain('useLayoutEffect');
   });
 
-  it('SW cache version is v3 (post-deploy cache bust)', () => {
+  it('SW cache version is v4 (post-deploy cache bust)', () => {
     const src = fs.readFileSync(path.join(ROOT, 'public/sw.js'), 'utf8');
-    expect(src).toContain("CACHE_VERSION = 'v3'");
+    expect(src).toContain("CACHE_VERSION = 'v4'");
   });
 
   it('SW does not precache HTML pages (prevents stale-CSS flash on deploy)', () => {

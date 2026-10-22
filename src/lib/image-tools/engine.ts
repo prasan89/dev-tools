@@ -54,22 +54,7 @@ async function canvasToBlob(
 }
 
 async function loadImageBitmap(file: File): Promise<ImageBitmap> {
-  if (typeof createImageBitmap !== 'undefined') {
-    return createImageBitmap(file);
-  }
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      createImageBitmap(img).then(resolve).catch(reject);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('Failed to decode image.'));
-    };
-    img.src = url;
-  });
+  return createImageBitmap(file);
 }
 
 function resolveFormat(file: File, mime?: string): ImageFormat {
@@ -99,22 +84,23 @@ function fillBackground(
  * Inspect image metadata without full decode. Returns dimensions and format.
  */
 export async function inspectImage(file: File): Promise<InspectResult> {
-  const bitmap = await loadImageBitmap(file);
+  const [bitmap, detectedFormat] = await Promise.all([
+    loadImageBitmap(file),
+    detectFormatFromBytes(file),
+  ]);
   const w = bitmap.width;
   const h = bitmap.height;
-  bitmap.close();
+  const fmt = detectedFormat ?? resolveFormat(file);
 
-  const detectedFormat = (await detectFormatFromBytes(file)) ?? resolveFormat(file);
-
-  // Check for transparency: draw onto a canvas and inspect alpha channel
+  // Check for transparency: sample a downscaled copy to reduce pixel iteration
   let hasTransparency = false;
-  if (detectedFormat === 'png' || detectedFormat === 'webp') {
-    const canvas = createCanvas(Math.min(w, 256), Math.min(h, 256));
+  if (fmt === 'png' || fmt === 'webp') {
+    const sw = Math.min(w, 256);
+    const sh = Math.min(h, 256);
+    const canvas = createCanvas(sw, sh);
     const ctx = getCtx(canvas);
-    const bm2 = await loadImageBitmap(file);
-    ctx.drawImage(bm2, 0, 0, canvas.width, canvas.height);
-    bm2.close();
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, 0, sw, sh);
+    const imageData = ctx.getImageData(0, 0, sw, sh);
     const data = imageData.data;
     for (let i = 3; i < data.length; i += 4) {
       if (data[i] < 255) {
@@ -123,8 +109,9 @@ export async function inspectImage(file: File): Promise<InspectResult> {
       }
     }
   }
+  bitmap.close();
 
-  return { width: w, height: h, format: detectedFormat, hasTransparency };
+  return { width: w, height: h, format: fmt, hasTransparency };
 }
 
 /**
