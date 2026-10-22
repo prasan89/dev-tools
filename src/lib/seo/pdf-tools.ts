@@ -104,6 +104,16 @@ const PDF_TOOLS_SEO: Record<string, PdfToolSeo> = {
     keywords: ['extract pdf pages', 'pdf page extractor', 'save specific pdf pages', 'pdf range extract'],
     index: true,
   },
+  'edit-pdf': {
+    title: 'Edit PDF Online — Add Text & Annotations Free',
+    description:
+      'Add text, highlights, rectangles, and lines to PDF pages. Edit and download locally in your browser — files are never uploaded.',
+    path: '/pdf-tools/edit-pdf',
+    h1: 'PDF Editor',
+    subtitle: 'Add text and annotations to PDF pages, then download your edited file.',
+    keywords: ['edit pdf online', 'pdf editor', 'add text to pdf', 'annotate pdf', 'highlight pdf'],
+    index: true,
+  },
   'fill-pdf': {
     title: 'Fill PDF Form — Complete PDF Forms Online',
     description:

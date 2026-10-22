@@ -50,6 +50,7 @@ const TOOL_CATEGORIES: ToolCategory[] = [
       { title: 'Organize PDF', description: 'Rotate, delete, and reorder PDF pages. Drag and drop to rearrange.', href: '/pdf-tools/organize-pdf', available: true },
       { title: 'Crop PDF', description: 'Visually crop PDF pages to remove margins or whitespace.', href: '/pdf-tools/crop-pdf', available: true },
       { title: 'Extract Pages', description: 'Extract specific pages or page ranges from a PDF into a new file.', href: '/pdf-tools/extract-pages', available: true },
+      { title: 'Edit PDF', description: 'Add text, highlights, rectangles, and lines to a PDF in your browser.', href: '/pdf-tools/edit-pdf', available: true },
       { title: 'Fill PDF Form', description: 'Fill AcroForm PDF fields — text, checkboxes, radio buttons, and dropdowns.', href: '/pdf-tools/fill-pdf', available: true },
       { title: 'Create PDF Form', description: 'Add interactive form fields to any PDF — text boxes, checkboxes, radio buttons, and dropdowns.', href: '/pdf-tools/create-pdf-form', available: true },
     ],
