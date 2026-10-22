@@ -148,6 +148,7 @@ function CropCanvas({
 
     const cw = canvas.width;
     const ch = canvas.height;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, cw, ch);
     ctx.drawImage(img, 0, 0, cw, ch);
 
