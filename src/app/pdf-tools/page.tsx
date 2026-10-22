@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   },
   keywords: [
     'pdf tools online', 'free pdf tools', 'merge pdf', 'split pdf', 'compress pdf',
-    'pdf converter', 'ocr pdf', 'pdf editor online', 'browser based pdf',
+    'pdf converter', 'ocr pdf', 'browser based pdf',
   ],
   openGraph: {
     title: 'Free Online PDF Tools — Merge, Split, Compress & Convert PDFs',
@@ -50,7 +50,6 @@ const TOOL_CATEGORIES: ToolCategory[] = [
       { title: 'Organize PDF', description: 'Rotate, delete, and reorder PDF pages. Drag and drop to rearrange.', href: '/pdf-tools/organize-pdf', available: true },
       { title: 'Crop PDF', description: 'Visually crop PDF pages to remove margins or whitespace.', href: '/pdf-tools/crop-pdf', available: true },
       { title: 'Extract Pages', description: 'Extract specific pages or page ranges from a PDF into a new file.', href: '/pdf-tools/extract-pages', available: true },
-      { title: 'Edit PDF', description: 'Add text, images, shapes, highlights, and annotations to any PDF page.', href: '/pdf-tools/edit-pdf', available: true },
       { title: 'Fill PDF Form', description: 'Fill AcroForm PDF fields — text, checkboxes, radio buttons, and dropdowns.', href: '/pdf-tools/fill-pdf', available: true },
       { title: 'Create PDF Form', description: 'Add interactive form fields to any PDF — text boxes, checkboxes, radio buttons, and dropdowns.', href: '/pdf-tools/create-pdf-form', available: true },
     ],
