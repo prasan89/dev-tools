@@ -75,14 +75,14 @@ export default function EditPdfClient() {
         }
         const task = pdfjs.getDocument({ data: fileBytes.slice(0), disableAutoFetch: true });
         const doc = await task.promise;
-        if (cancelled) { await doc.destroy(); return; }
+        if (cancelled) { doc.cleanup(); return; }
         setPageCount(doc.numPages);
         const pdfPage = await doc.getPage(page);
         const viewport = pdfPage.getViewport({ scale: SCALE });
         const unitViewport = pdfPage.getViewport({ scale: 1 });
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext('2d');
-        if (!canvas || !ctx) { await doc.destroy(); return; }
+        if (!canvas || !ctx) { doc.cleanup(); return; }
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         canvas.width = Math.floor(viewport.width * dpr);
         canvas.height = Math.floor(viewport.height * dpr);
@@ -94,7 +94,7 @@ export default function EditPdfClient() {
           setRenderInfo({ width: viewport.width, height: viewport.height, pageWidth: unitViewport.width, pageHeight: unitViewport.height, scale: SCALE });
         }
         pdfPage.cleanup();
-        await doc.destroy();
+        doc.cleanup();
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Unable to render this PDF.');
       }
@@ -179,6 +179,7 @@ export default function EditPdfClient() {
     }
     if (dragRef.current) {
       const drag = dragRef.current;
+      if (!renderInfo) return;
       setMarks((old) => old.map((mark) => mark.id === drag.id
         ? { ...mark, x: Math.max(0, Math.min(renderInfo.pageWidth - mark.width, drag.x + point.x - drag.start.x)), y: Math.max(0, Math.min(renderInfo.pageHeight - mark.height, drag.y + point.y - drag.start.y)) }
         : mark));
