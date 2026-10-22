@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   alternates: { canonical: siteUrl('/image-tools') },
   keywords: [
     'image tools online', 'free image tools', 'compress image', 'resize image', 'crop image',
-    'convert image', 'rotate image', 'browser image editor', 'image optimizer',
+    'convert image', 'rotate image', 'browser image editor', 'image optimizer', 'image watermark', 'blur image', 'image to base64',
   ],
   openGraph: {
     title: 'Free Online Image Tools — DevToolsHub',
@@ -71,6 +71,24 @@ const IMAGE_TOOLS = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
       </svg>
     ),
+  },
+  {
+    title: 'Watermark Image',
+    description: 'Add branded text to an image with adjustable color, opacity, size, and position.',
+    href: '/image-tools/watermark',
+    icon: (<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5L12 3z" /></svg>),
+  },
+  {
+    title: 'Blur Image',
+    description: 'Apply an adjustable blur effect and download the result privately in your browser.',
+    href: '/image-tools/blur',
+    icon: (<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8m0-12.8L5.6 18.4" /></svg>),
+  },
+  {
+    title: 'Image to Base64',
+    description: 'Convert images to Base64 strings or data URLs for HTML, CSS, and JSON.',
+    href: '/image-tools/base64',
+    icon: (<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 5H5v14h3m8-14h3v14h-3M10 9l-3 3 3 3m4-6l3 3-3 3" /></svg>),
   },
 ];
 
