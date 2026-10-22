@@ -11,6 +11,7 @@ export const metadata: Metadata = {
   keywords: [
     'image tools online', 'free image tools', 'compress image', 'resize image', 'crop image',
     'convert image', 'rotate image', 'browser image editor', 'image optimizer', 'image watermark', 'blur image', 'image to base64',
+    'grayscale image', 'pixelate image', 'round image corners',
   ],
   openGraph: {
     title: 'Free Online Image Tools — DevToolsHub',
@@ -89,6 +90,24 @@ const IMAGE_TOOLS = [
     description: 'Convert images to Base64 strings or data URLs for HTML, CSS, and JSON.',
     href: '/image-tools/base64',
     icon: (<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 5H5v14h3m8-14h3v14h-3M10 9l-3 3 3 3m4-6l3 3-3 3" /></svg>),
+  },
+  {
+    title: 'Image to Grayscale',
+    description: 'Convert images to grayscale with adjustable intensity. Blend from full color to black and white.',
+    href: '/image-tools/grayscale',
+    icon: (<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 3v18M3 12h18" /><circle cx="12" cy="12" r="5" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} /></svg>),
+  },
+  {
+    title: 'Pixelate Image',
+    description: 'Apply pixel-art style pixelation with adjustable block size. Crisp nearest-neighbor blocks.',
+    href: '/image-tools/pixelate',
+    icon: (<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4h4v4H4zM10 4h4v4h-4zM16 4h4v4h-4zM4 10h4v4H4zM10 10h4v4h-4zM16 10h4v4h-4zM4 16h4v4H4zM10 16h4v4h-4zM16 16h4v4h-4z" /></svg>),
+  },
+  {
+    title: 'Round Image Corners',
+    description: 'Add rounded corners to images with adjustable radius. Export as PNG with transparent corners.',
+    href: '/image-tools/rounded-corners',
+    icon: (<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" ry="5" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} /></svg>),
   },
 ];
 
