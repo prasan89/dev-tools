@@ -56,6 +56,66 @@ interface CropCanvasProps {
   onSelectionChange: (sel: CropSelection) => void;
 }
 
+function clampSelection(selection: CropSelection): CropSelection {
+  const w = Math.max(0, Math.min(1, selection.w));
+  const h = Math.max(0, Math.min(1, selection.h));
+  return {
+    x: Math.max(0, Math.min(selection.x, 1 - w)),
+    y: Math.max(0, Math.min(selection.y, 1 - h)),
+    w,
+    h,
+  };
+}
+
+function selectionFromDrag(
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+  naturalW: number,
+  naturalH: number,
+  aspectRatio: number | null,
+): CropSelection {
+  const left = Math.min(startX, endX);
+  const top = Math.min(startY, endY);
+  let width = Math.abs(endX - startX);
+  let height = Math.abs(endY - startY);
+
+  if (aspectRatio) {
+    // aspectRatio is expressed in output pixels, not display-canvas units.
+    const displayRatio = (naturalH / naturalW) * aspectRatio;
+    if (width / Math.max(height, 0.0001) > displayRatio) {
+      height = width / displayRatio;
+    } else {
+      width = height * displayRatio;
+    }
+  }
+
+  width = Math.max(0.005, Math.min(width, 1));
+  height = Math.max(0.005, Math.min(height, 1));
+  const x = Math.min(left, 1 - width);
+  const y = Math.min(top, 1 - height);
+
+  // Refit a preset selection to the canvas bounds without changing its ratio.
+  if (aspectRatio) {
+    const displayRatio = (naturalH / naturalW) * aspectRatio;
+    let fittedW = width;
+    let fittedH = height;
+    if (x + fittedW > 1) {
+      fittedW = 1 - x;
+      fittedH = fittedW / displayRatio;
+    }
+    if (y + fittedH > 1) {
+      fittedH = 1 - y;
+      fittedW = fittedH * displayRatio;
+    }
+    width = Math.max(0.005, fittedW);
+    height = Math.max(0.005, fittedH);
+  }
+
+  return clampSelection({ x, y, w: width, h: height });
+}
+
 function CropCanvas({
   previewUrl,
   naturalW,
@@ -66,180 +126,205 @@ function CropCanvas({
 }: CropCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
+  const selectionRef = useRef<CropSelection | null>(selection);
   const dragging = useRef<{
+    pointerId: number;
     startX: number;
     startY: number;
     mode: 'draw' | 'move';
-    initSel?: CropSelection;
-    initMX?: number;
-    initMY?: number;
+    initial: CropSelection | null;
   } | null>(null);
+  const [ready, setReady] = useState(false);
 
-  function drawOverlay(
-    ctx: CanvasRenderingContext2D,
-    cw: number,
-    ch: number,
-    sel: CropSelection | null,
-  ) {
+  useEffect(() => {
+    selectionRef.current = selection;
+  }, [selection]);
+
+  const drawOverlay = useCallback((sel: CropSelection | null) => {
+    const canvas = canvasRef.current;
     const img = imgRef.current;
-    if (!img) return;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !img || !ctx || !img.complete || !img.naturalWidth) return;
+
+    const cw = canvas.width;
+    const ch = canvas.height;
     ctx.clearRect(0, 0, cw, ch);
     ctx.drawImage(img, 0, 0, cw, ch);
-    if (sel) {
-      const x = sel.x * cw;
-      const y = sel.y * ch;
-      const w = sel.w * cw;
-      const h = sel.h * ch;
-      ctx.fillStyle = 'rgba(0,0,0,0.45)';
-      ctx.fillRect(0, 0, cw, ch);
-      ctx.clearRect(x, y, w, h);
-      ctx.drawImage(img, x, y, w, h, x, y, w, h);
-      ctx.strokeStyle = '#7c3aed';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(x, y, w, h);
 
-      // Rule of thirds guides
-      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-      ctx.lineWidth = 1;
-      for (let i = 1; i < 3; i++) {
-        ctx.beginPath(); ctx.moveTo(x + (w * i) / 3, y); ctx.lineTo(x + (w * i) / 3, y + h); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(x, y + (h * i) / 3); ctx.lineTo(x + w, y + (h * i) / 3); ctx.stroke();
-      }
+    if (!sel) return;
 
-      // Corner handles
-      const hs = 8;
-      ctx.fillStyle = '#7c3aed';
-      [[x, y], [x + w - hs, y], [x, y + h - hs], [x + w - hs, y + h - hs]].forEach(([hx, hy]) => {
-        ctx.fillRect(hx, hy, hs, hs);
-      });
+    const x = sel.x * cw;
+    const y = sel.y * ch;
+    const w = sel.w * cw;
+    const h = sel.h * ch;
+    ctx.save();
+    ctx.fillStyle = 'rgba(10, 10, 18, 0.52)';
+    ctx.fillRect(0, 0, cw, ch);
+    ctx.clearRect(x, y, w, h);
+    ctx.drawImage(img, x / cw * img.naturalWidth, y / ch * img.naturalHeight,
+      w / cw * img.naturalWidth, h / ch * img.naturalHeight, x, y, w, h);
+    ctx.strokeStyle = '#7c3aed';
+    ctx.lineWidth = Math.max(1.5, (window.devicePixelRatio || 1) * 1.25);
+    ctx.strokeRect(x, y, w, h);
+
+    ctx.strokeStyle = 'rgba(255,255,255,.5)';
+    ctx.lineWidth = Math.max(1, window.devicePixelRatio || 1);
+    for (let i = 1; i < 3; i += 1) {
+      ctx.beginPath();
+      ctx.moveTo(x + (w * i) / 3, y);
+      ctx.lineTo(x + (w * i) / 3, y + h);
+      ctx.moveTo(x, y + (h * i) / 3);
+      ctx.lineTo(x + w, y + (h * i) / 3);
+      ctx.stroke();
     }
-  }
+    const handle = 7 * (window.devicePixelRatio || 1);
+    ctx.fillStyle = '#7c3aed';
+    [[x, y], [x + w - handle, y], [x, y + h - handle], [x + w - handle, y + h - handle]].forEach(([hx, hy]) => {
+      ctx.fillRect(hx, hy, handle, handle);
+    });
+    ctx.restore();
+  }, []);
 
-  function redraw(sel: CropSelection | null) {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d')!;
-    drawOverlay(ctx, canvas.width, canvas.height, sel);
-  }
-
-  // Load image and draw
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    let cancelled = false;
     const img = new Image();
-    img.src = previewUrl;
-    imgRef.current = img;
     img.onload = () => {
-      const ctx = canvas.getContext('2d')!;
-      canvas.width = canvas.offsetWidth;
-      canvas.height = (canvas.offsetWidth * naturalH) / naturalW;
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      drawOverlay(ctx, canvas.width, canvas.height, selection);
+      if (cancelled) return;
+      imgRef.current = img;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const cssWidth = canvas.clientWidth || Math.min(naturalW, 900);
+      const cssHeight = (cssWidth * naturalH) / naturalW;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.style.aspectRatio = `${naturalW} / ${naturalH}`;
+      canvas.style.height = `${cssHeight}px`;
+      canvas.width = Math.max(1, Math.round(cssWidth * dpr));
+      canvas.height = Math.max(1, Math.round(cssHeight * dpr));
+      drawOverlay(selectionRef.current);
+      setReady(true);
     };
-  }, [previewUrl, naturalW, naturalH]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function clientToRel(e: React.MouseEvent | React.TouchEvent) {
-    const canvas = canvasRef.current!;
-    const rect = canvas.getBoundingClientRect();
-    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
-    return {
-      rx: Math.max(0, Math.min(1, (clientX - rect.left) / canvas.width)),
-      ry: Math.max(0, Math.min(1, (clientY - rect.top) / canvas.height)),
+    img.onerror = () => {
+      if (!cancelled) setReady(false);
     };
-  }
+    img.src = previewUrl;
+    return () => {
+      cancelled = true;
+      img.onload = null;
+      img.onerror = null;
+    };
+  }, [previewUrl, naturalW, naturalH, drawOverlay]);
 
-  function clampSel(s: CropSelection): CropSelection {
-    const x = Math.max(0, Math.min(s.x, 1 - s.w));
-    const y = Math.max(0, Math.min(s.y, 1 - s.h));
-    return { ...s, x, y };
-  }
-
-  function applyAspect(sel: CropSelection, ratio: number | null): CropSelection {
-    if (!ratio) return sel;
-    // Adjust height to match ratio (accounting for natural dimensions)
-    const pxW = sel.w * naturalW;
-    const pxH = pxW / ratio;
-    const newH = pxH / naturalH;
-    return { ...sel, h: Math.min(newH, 1 - sel.y) };
-  }
-
-  function handlePointerDown(e: React.MouseEvent) {
-    const { rx, ry } = clientToRel(e);
-    const sel = selection;
-    // Check if clicking inside existing selection (move mode)
-    if (sel && rx >= sel.x && rx <= sel.x + sel.w && ry >= sel.y && ry <= sel.y + sel.h) {
-      dragging.current = { startX: rx, startY: ry, mode: 'move', initSel: { ...sel }, initMX: rx, initMY: ry };
-    } else {
-      dragging.current = { startX: rx, startY: ry, mode: 'draw' };
-    }
-  }
-
-  function handlePointerMove(e: React.MouseEvent) {
-    if (!dragging.current) return;
-    const { rx, ry } = clientToRel(e);
-    const d = dragging.current;
-
-    if (d.mode === 'move' && d.initSel && d.initMX !== undefined && d.initMY !== undefined) {
-      const dx = rx - d.initMX;
-      const dy = ry - d.initMY;
-      const moved = clampSel({
-        ...d.initSel,
-        x: d.initSel.x + dx,
-        y: d.initSel.y + dy,
-      });
-      redraw(moved);
-      return;
-    }
-
-    // draw mode
-    const x = Math.min(d.startX, rx);
-    const y = Math.min(d.startY, ry);
-    const w = Math.max(0.01, Math.abs(rx - d.startX));
-    const h = Math.max(0.01, Math.abs(ry - d.startY));
-    const newSel = applyAspect(clampSel({ x, y, w, h }), aspectRatio);
-    redraw(newSel);
-  }
-
-  function handlePointerUp(e: React.MouseEvent) {
-    if (!dragging.current) return;
-    const { rx, ry } = clientToRel(e);
-    const d = dragging.current;
-    dragging.current = null;
-
-    if (d.mode === 'move' && d.initSel && d.initMX !== undefined && d.initMY !== undefined) {
-      const dx = rx - d.initMX;
-      const dy = ry - d.initMY;
-      const moved = clampSel({ ...d.initSel, x: d.initSel.x + dx, y: d.initSel.y + dy });
-      onSelectionChange(moved);
-      return;
-    }
-
-    const x = Math.min(d.startX, rx);
-    const y = Math.min(d.startY, ry);
-    const w = Math.max(0.01, Math.abs(rx - d.startX));
-    const h = Math.max(0.01, Math.abs(ry - d.startY));
-    const newSel = applyAspect(clampSel({ x, y, w, h }), aspectRatio);
-    onSelectionChange(newSel);
-  }
-
-  // Re-draw when external selection changes
   useEffect(() => {
-    redraw(selection);
-  }, [selection]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!ready) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Update the backing bitmap on resize; coordinate calculations remain in CSS pixels.
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const nextW = Math.max(1, Math.round(rect.width * dpr));
+      const nextH = Math.max(1, Math.round(rect.height * dpr));
+      if (canvas.width !== nextW || canvas.height !== nextH) {
+        canvas.width = nextW;
+        canvas.height = nextH;
+      }
+      drawOverlay(selectionRef.current);
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(canvas);
+    resize();
+    return () => observer.disconnect();
+  }, [ready, drawOverlay]);
+
+  useEffect(() => {
+    drawOverlay(selection);
+    selectionRef.current = selection;
+  }, [selection, drawOverlay]);
+
+  const pointerToRelative = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (!rect.width || !rect.height) return { x: 0, y: 0 };
+    return {
+      x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)),
+      y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)),
+    };
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!ready || event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const point = pointerToRelative(event);
+    const current = selectionRef.current;
+    const inside = current &&
+      point.x >= current.x && point.x <= current.x + current.w &&
+      point.y >= current.y && point.y <= current.y + current.h;
+    dragging.current = {
+      pointerId: event.pointerId,
+      startX: point.x,
+      startY: point.y,
+      mode: inside ? 'move' : 'draw',
+      initial: current ? { ...current } : null,
+    };
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const drag = dragging.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    const point = pointerToRelative(event);
+    let next: CropSelection;
+    if (drag.mode === 'move' && drag.initial) {
+      next = clampSelection({
+        ...drag.initial,
+        x: drag.initial.x + point.x - drag.startX,
+        y: drag.initial.y + point.y - drag.startY,
+      });
+    } else {
+      next = selectionFromDrag(drag.startX, drag.startY, point.x, point.y, naturalW, naturalH, aspectRatio);
+    }
+    selectionRef.current = next;
+    drawOverlay(next);
+  };
+
+  const finishPointer = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const drag = dragging.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const point = pointerToRelative(event);
+    dragging.current = null;
+    let next: CropSelection;
+    if (drag.mode === 'move' && drag.initial) {
+      next = clampSelection({
+        ...drag.initial,
+        x: drag.initial.x + point.x - drag.startX,
+        y: drag.initial.y + point.y - drag.startY,
+      });
+    } else {
+      next = selectionFromDrag(drag.startX, drag.startY, point.x, point.y, naturalW, naturalH, aspectRatio);
+    }
+    selectionRef.current = next;
+    drawOverlay(next);
+    onSelectionChange(next);
+  };
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="w-full rounded-lg cursor-crosshair touch-none select-none"
-      style={{ maxHeight: '60vh', objectFit: 'contain' }}
-      onMouseDown={handlePointerDown}
-      onMouseMove={handlePointerMove}
-      onMouseUp={handlePointerUp}
-      onMouseLeave={handlePointerUp}
-      aria-label="Crop selection canvas — drag to select crop area"
-      role="img"
-    />
+    <div className="w-full">
+      <canvas
+        ref={canvasRef}
+        className="block w-full max-w-full rounded-lg cursor-crosshair touch-none select-none"
+        style={{ maxHeight: '60vh' }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={finishPointer}
+        onPointerCancel={finishPointer}
+        aria-label="Crop selection canvas — drag to select or move the crop area"
+        role="img"
+        tabIndex={0}
+      />
+      {!ready && <p className="mt-2 text-xs text-gray-500" role="status">Loading image preview…</p>}
+    </div>
   );
 }
 
