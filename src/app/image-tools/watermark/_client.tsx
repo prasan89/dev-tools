@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ImageToolLayout } from '@/components/image-tools/ImageToolLayout';
 import { ImageDropzone } from '@/components/image-tools/ImageDropzone';
 import { ImageDownloadButton } from '@/components/image-tools/ImageDownloadButton';
@@ -16,8 +16,10 @@ export default function WatermarkClient() {
   const [position, setPosition] = useState('bottom-right');
   const [output, setOutput] = useState('');
   const [error, setError] = useState('');
+  const sourceRef = useRef('');
+  const outputRef = useRef('');
 
-  useEffect(() => () => { if (source) revokeObjectUrl(source); if (output) revokeObjectUrl(output); }, [source, output]);
+  useEffect(() => () => { if (sourceRef.current) revokeObjectUrl(sourceRef.current); if (outputRef.current) revokeObjectUrl(outputRef.current); }, []);
 
   const process = async () => {
     if (!file || !text.trim()) { setError('Choose an image and enter watermark text.'); return; }
@@ -41,22 +43,23 @@ export default function WatermarkClient() {
         ctx.fillText(text, Math.max(0, x), Math.max(px / 2, y));
         const mime = file.type === 'image/png' || file.type === 'image/webp' ? file.type : 'image/jpeg';
         const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error('Could not export image.')), mime, 0.92));
-        if (output) revokeObjectUrl(output);
-        setOutput(createObjectUrl(blob));
+        if (outputRef.current) revokeObjectUrl(outputRef.current);
+        const url = createObjectUrl(blob); outputRef.current = url; setOutput(url);
       } finally { bitmap.close(); }
     } catch (e) { setError(e instanceof Error ? e.message : 'Watermark failed.'); }
   };
 
   const onFiles = (files: File[]) => {
     const next = files[0]; if (!next) return;
-    if (source) revokeObjectUrl(source); if (output) revokeObjectUrl(output);
-    setFile(next); setSource(createObjectUrl(next)); setOutput(''); setError('');
+    if (sourceRef.current) revokeObjectUrl(sourceRef.current); if (outputRef.current) revokeObjectUrl(outputRef.current);
+    const url = createObjectUrl(next); sourceRef.current = url; outputRef.current = '';
+    setFile(next); setSource(url); setOutput(''); setError('');
   };
 
   return <ImageToolLayout title="Watermark Image" description="Add a customizable text watermark to protect or brand your images. Everything runs locally in your browser.">
     <div className="space-y-5">
       {!file && <ImageDropzone onFiles={onFiles} />}
-      {file && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900"><span className="truncate text-sm">{file.name}</span><button className="text-sm text-violet-600" onClick={() => { if(source) revokeObjectUrl(source); if(output) revokeObjectUrl(output); setFile(null); setSource(''); setOutput(''); }}>Choose another image</button></div>}
+      {file && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900"><span className="truncate text-sm">{file.name}</span><button className="text-sm text-violet-600" onClick={() => { if(sourceRef.current) revokeObjectUrl(sourceRef.current); if(outputRef.current) revokeObjectUrl(outputRef.current); sourceRef.current=''; outputRef.current=''; setFile(null); setSource(''); setOutput(''); }}>Choose another image</button></div>}
       {source && <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]"><div className="flex min-h-64 items-center justify-center rounded-xl border border-gray-200 bg-gray-100 p-4 dark:border-gray-700 dark:bg-gray-800"><img src={output || source} alt="Watermarked image preview" className="max-h-[600px] max-w-full object-contain" /></div>
       <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
         <label className="block text-sm">Watermark text<input value={text} onChange={e=>setText(e.target.value)} maxLength={120} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-800" /></label>
