@@ -108,9 +108,17 @@ export default function EditPdfClient() {
           const fontSize = Math.max(6, itemHeight / SCALE);
           const style = textContent.styles[item.fontName];
           const fontFamily = style?.fontFamily || 'Helvetica, Arial, sans-serif';
-          const fontLabel = (item.fontName + ' ' + fontFamily).toLowerCase();
-          const bold = /bold|black|heavy|semibold|demi/.test(fontLabel);
-          const italic = /italic|oblique/.test(fontLabel);
+          // PDF.js keeps the source font descriptor in commonObjs. Its flags
+          // are more reliable than the generated font id (e.g. g_d0_f3).
+          let sourceFont: { name?: string; loadedName?: string; isBold?: boolean; isItalic?: boolean } | undefined;
+          try {
+            sourceFont = pdfPage.commonObjs.get(item.fontName) as typeof sourceFont;
+          } catch {
+            sourceFont = undefined;
+          }
+          const fontLabel = [item.fontName, sourceFont?.name, sourceFont?.loadedName, fontFamily].filter(Boolean).join(' ').toLowerCase();
+          const bold = sourceFont?.isBold ?? /bold|black|heavy|semibold|demi/.test(fontLabel);
+          const italic = sourceFont?.isItalic ?? /italic|oblique/.test(fontLabel);
           const tokens = item.str.match(/\\S+|\\s+/g) ?? [item.str];
           if (measureContext) measureContext.font = `${italic ? 'italic ' : ''}${bold ? 'bold ' : ''}${fontSize}px ${fontFamily}`;
           const tokenWidths = tokens.map((token) => measureContext?.measureText(token).width ?? token.length);
