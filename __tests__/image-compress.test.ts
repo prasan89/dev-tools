@@ -1,7 +1,9 @@
 import { compressImage } from '@/lib/image-tools/engine';
 
 jest.mock('@/lib/image-tools/validation', () => ({
-  detectFormatFromBytes: jest.fn().mockResolvedValue('jpeg'),
+  detectFormatFromBytes: jest.fn().mockImplementation(async (file: File) =>
+    file.name.toLowerCase().endsWith('.png') ? 'png' : 'jpeg',
+  ),
   formatFromMime: jest.fn().mockReturnValue(null),
 }));
 
@@ -78,6 +80,16 @@ describe('compressImage', () => {
 
     expect(result.outputSize).toBeLessThanOrEqual(5 * 1024);
     expect(canvas.toBlob).toHaveBeenCalled();
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not run a misleading quality search for lossless PNG output', async () => {
+    const file = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'photo.png', { type: 'image/png' });
+    const result = await compressImage(file, { quality: 0.2, targetSizeKb: 5 });
+
+    expect(result.format).toBe('png');
+    expect(result.blob.type).toBe('image/png');
+    expect(canvas.toBlob).toHaveBeenCalledTimes(1);
     expect(close).toHaveBeenCalledTimes(1);
   });
 
