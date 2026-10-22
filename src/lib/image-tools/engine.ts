@@ -185,6 +185,7 @@ export async function compressImage(
       let low = 0.05;
       let high = 0.95;
       let bestUnderTarget: Blob | null = null;
+      let bestUnderQuality = Number.NEGATIVE_INFINITY;
       let closest: Blob | null = null;
       let closestDelta = Number.POSITIVE_INFINITY;
 
@@ -200,7 +201,10 @@ export async function compressImage(
           closestDelta = delta;
         }
         if (candidate.size <= targetBytes) {
-          if (!bestUnderTarget || quality > low) bestUnderTarget = candidate;
+          if (quality > bestUnderQuality) {
+            bestUnderTarget = candidate;
+            bestUnderQuality = quality;
+          }
           low = quality;
         } else {
           high = quality;
