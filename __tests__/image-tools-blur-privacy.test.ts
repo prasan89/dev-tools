@@ -239,7 +239,7 @@ describe('face detector state machine', () => {
   });
 
   it('detect button is enabled in idle state', () => {
-    const state: DetectorState = 'idle';
+    const state: DetectorState = 'idle' as DetectorState;
     const isDetecting = false;
     const disabled = isDetecting || state === 'loading';
     expect(disabled).toBe(false);
