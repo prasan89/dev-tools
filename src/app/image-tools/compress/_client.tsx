@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ImageToolLayout } from '@/components/image-tools/ImageToolLayout';
 import { ImageDropzone } from '@/components/image-tools/ImageDropzone';
 import { ImageDownloadButton } from '@/components/image-tools/ImageDownloadButton';
+import { BeforeAfterSlider } from '@/components/image-tools/BeforeAfterSlider';
 import { compressImage, formatFileSize, compressionSavings, outputFilename, createObjectUrl, revokeObjectUrl } from '@/lib/image-tools/engine';
 import type { CompressOptions, CompressResult } from '@/lib/image-tools/types';
 
@@ -15,6 +16,7 @@ interface FileResult {
   result?: CompressResult;
   outputUrl?: string;
   error?: string;
+  showComparison?: boolean;
 }
 
 export default function CompressClient() {
@@ -307,12 +309,38 @@ export default function CompressClient() {
                 </div>
 
                 {item.status === 'done' && item.outputUrl && item.result && (
-                  <ImageDownloadButton
-                    url={item.outputUrl}
-                    filename={outputFilename(item.file.name, item.result.format, '_compressed')}
-                    label="Download"
-                    size={formatFileSize(item.result.outputSize)}
-                  />
+                  <>
+                    <div className="flex items-center gap-3">
+                      <ImageDownloadButton
+                        url={item.outputUrl}
+                        filename={outputFilename(item.file.name, item.result.format, '_compressed')}
+                        label="Download"
+                        size={formatFileSize(item.result.outputSize)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFiles((prev) =>
+                            prev.map((f) =>
+                              f.id === item.id ? { ...f, showComparison: !f.showComparison } : f,
+                            ),
+                          )
+                        }
+                        className="text-xs text-violet-600 dark:text-violet-400 hover:underline"
+                      >
+                        {item.showComparison ? 'Hide' : 'Compare'} before/after
+                      </button>
+                    </div>
+                    {item.showComparison && (
+                      <BeforeAfterSlider
+                        beforeUrl={item.previewUrl}
+                        afterUrl={item.outputUrl}
+                        beforeLabel={`Before · ${formatFileSize(item.result.originalSize)}`}
+                        afterLabel={`After · ${formatFileSize(item.result.outputSize)}`}
+                        alt={item.file.name}
+                      />
+                    )}
+                  </>
                 )}
               </div>
             ))}

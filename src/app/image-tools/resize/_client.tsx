@@ -199,9 +199,7 @@ export default function ResizeClient() {
     const { default: JSZip } = await import('jszip');
     const zip = new JSZip();
     for (const f of done) {
-      const resp = await fetch(f.outputUrl!);
-      const blob = await resp.blob();
-      zip.file(outputFilename(f.file.name, f.result!.format, '_resized'), blob);
+      zip.file(outputFilename(f.file.name, f.result!.format, '_resized'), f.result!.blob);
     }
     const zipBlob = await zip.generateAsync({ type: 'blob' });
     const url = createObjectUrl(zipBlob);
@@ -362,7 +360,7 @@ export default function ResizeClient() {
               <div key={item.id} className="flex flex-col gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
                 <div className="flex items-start gap-3">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={item.previewUrl} alt="" aria-hidden="true" className="h-14 w-14 rounded-lg object-cover shrink-0 border border-gray-100 dark:border-gray-700" />
+                  <img src={item.status === 'done' && item.outputUrl ? item.outputUrl : item.previewUrl} alt="" aria-hidden="true" className="h-14 w-14 rounded-lg object-cover shrink-0 border border-gray-100 dark:border-gray-700" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{item.file.name}</p>
                     {item.origW && item.origH && (

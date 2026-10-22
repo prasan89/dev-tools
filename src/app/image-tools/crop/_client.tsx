@@ -45,6 +45,18 @@ interface ImageState {
   outputUrl?: string;
 }
 
+interface BatchItem {
+  id: string;
+  file: File;
+  previewUrl: string;
+  naturalW: number;
+  naturalH: number;
+  status: 'queued' | 'processing' | 'done' | 'failed';
+  result?: CropResult;
+  outputUrl?: string;
+  error?: string;
+}
+
 // ─── Crop canvas component ────────────────────────────────────────────────────
 
 interface CropCanvasProps {
@@ -82,7 +94,6 @@ function selectionFromDrag(
   let height = Math.abs(endY - startY);
 
   if (aspectRatio) {
-    // aspectRatio is expressed in output pixels, not display-canvas units.
     const displayRatio = (naturalH / naturalW) * aspectRatio;
     if (width / Math.max(height, 0.0001) > displayRatio) {
       height = width / displayRatio;
@@ -96,7 +107,6 @@ function selectionFromDrag(
   const x = Math.min(left, 1 - width);
   const y = Math.min(top, 1 - height);
 
-  // Refit a preset selection to the canvas bounds without changing its ratio.
   if (aspectRatio) {
     const displayRatio = (naturalH / naturalW) * aspectRatio;
     let fittedW = width;
@@ -223,7 +233,6 @@ function CropCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Update the backing bitmap on resize; coordinate calculations remain in CSS pixels.
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
@@ -346,6 +355,11 @@ export default function CropClient() {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
 
+  // Batch state
+  const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
+  const [batchProcessing, setBatchProcessing] = useState(false);
+  const batchAbortRef = useRef<AbortController | null>(null);
+
   const cleanup = useCallback(() => {
     setImgState((current) => {
       if (current) {
@@ -360,6 +374,13 @@ export default function CropClient() {
     setCropW('');
     setCropH('');
     setError('');
+    setBatchItems((prev) => {
+      prev.forEach((b) => {
+        revokeObjectUrl(b.previewUrl);
+        if (b.outputUrl) revokeObjectUrl(b.outputUrl);
+      });
+      return [];
+    });
   }, []);
 
   useEffect(() => () => {
@@ -367,6 +388,10 @@ export default function CropClient() {
       revokeObjectUrl(imgState.previewUrl);
       if (imgState.outputUrl) revokeObjectUrl(imgState.outputUrl);
     }
+    batchItems.forEach((b) => {
+      revokeObjectUrl(b.previewUrl);
+      if (b.outputUrl) revokeObjectUrl(b.outputUrl);
+    });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFiles = useCallback(async (incoming: File[]) => {
@@ -383,11 +408,41 @@ export default function CropClient() {
       setSelection(null);
       setOutputFormat(info.format);
       setError('');
+      setBatchItems([]);
     } catch (e) {
       revokeObjectUrl(url);
       setError(e instanceof Error ? e.message : 'Failed to read image.');
     }
   }, [imgState]);
+
+  const handleBatchFiles = useCallback(async (incoming: File[]) => {
+    const newItems: BatchItem[] = [];
+    for (const f of incoming) {
+      try {
+        const info = await inspectImage(f);
+        newItems.push({
+          id: crypto.randomUUID(),
+          file: f,
+          previewUrl: createObjectUrl(f),
+          naturalW: info.width,
+          naturalH: info.height,
+          status: 'queued',
+        });
+      } catch { /* skip unreadable files */ }
+    }
+    setBatchItems((prev) => [...prev, ...newItems]);
+  }, []);
+
+  const removeBatchItem = useCallback((id: string) => {
+    setBatchItems((prev) => {
+      const item = prev.find((b) => b.id === id);
+      if (item) {
+        revokeObjectUrl(item.previewUrl);
+        if (item.outputUrl) revokeObjectUrl(item.outputUrl);
+      }
+      return prev.filter((b) => b.id !== id);
+    });
+  }, []);
 
   const syncCoordsFromSelection = useCallback(
     (sel: CropSelection | null) => {
@@ -450,6 +505,77 @@ export default function CropClient() {
     setProcessing(false);
   }, [imgState, selection, outputFormat]);
 
+  const handleBatchCrop = useCallback(async () => {
+    if (!selection || batchItems.length === 0) return;
+    const controller = new AbortController();
+    batchAbortRef.current = controller;
+    setBatchProcessing(true);
+
+    const pending = batchItems.filter((b) => b.status === 'queued' || b.status === 'failed');
+    for (const item of pending) {
+      if (controller.signal.aborted) break;
+      setBatchItems((prev) => prev.map((b) => b.id === item.id ? { ...b, status: 'processing' } : b));
+      try {
+        const cropX = Math.round(selection.x * item.naturalW);
+        const cropY = Math.round(selection.y * item.naturalH);
+        const cropW = Math.max(1, Math.round(selection.w * item.naturalW));
+        const cropH = Math.max(1, Math.round(selection.h * item.naturalH));
+        if (cropX + cropW > item.naturalW || cropY + cropH > item.naturalH) {
+          throw new Error('Crop region out of bounds for this image.');
+        }
+        const result = await cropImage(item.file, {
+          x: cropX, y: cropY, width: cropW, height: cropH, outputFormat,
+        }, controller.signal);
+        const outputUrl = createObjectUrl(result.blob);
+        setBatchItems((prev) =>
+          prev.map((b) => {
+            if (b.id !== item.id) return b;
+            if (b.outputUrl) revokeObjectUrl(b.outputUrl);
+            return { ...b, status: 'done', result, outputUrl };
+          }),
+        );
+      } catch (e) {
+        if (controller.signal.aborted) break;
+        setBatchItems((prev) =>
+          prev.map((b) =>
+            b.id === item.id
+              ? { ...b, status: 'failed', error: e instanceof Error ? e.message : String(e) }
+              : b,
+          ),
+        );
+      }
+    }
+    if (batchAbortRef.current === controller) {
+      batchAbortRef.current = null;
+      setBatchProcessing(false);
+    }
+  }, [selection, batchItems, outputFormat]);
+
+  const downloadBatchAll = useCallback(async () => {
+    const done = batchItems.filter((b) => b.status === 'done' && b.result);
+    if (done.length === 0) return;
+    if (done.length === 1) {
+      const b = done[0];
+      const a = document.createElement('a');
+      a.href = b.outputUrl!;
+      a.download = outputFilename(b.file.name, b.result!.format, '_cropped');
+      a.click();
+      return;
+    }
+    const { default: JSZip } = await import('jszip');
+    const zip = new JSZip();
+    for (const b of done) {
+      zip.file(outputFilename(b.file.name, b.result!.format, '_cropped'), b.result!.blob);
+    }
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const url = createObjectUrl(zipBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'cropped-images.zip';
+    a.click();
+    setTimeout(() => revokeObjectUrl(url), 60_000);
+  }, [batchItems]);
+
   const selectionPx = useMemo(() => {
     if (!selection || !imgState) return null;
     return {
@@ -463,7 +589,7 @@ export default function CropClient() {
   return (
     <ImageToolLayout
       title="Crop Image"
-      description="Select a crop area interactively or enter exact pixel coordinates. Supports freeform and preset aspect ratios."
+      description="Select a crop area interactively or enter exact pixel coordinates. Supports freeform and preset aspect ratios. Batch-crop multiple images with the same region."
     >
       {!imgState ? (
         <ImageDropzone onFiles={handleFiles} multiple={false} />
@@ -619,6 +745,104 @@ export default function CropClient() {
               Load different image
             </button>
           </div>
+
+          {/* Batch section — only shown when a selection exists */}
+          {selection && (
+            <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 space-y-4">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Apply to more images</h2>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Add more images to crop with the same relative region ({Math.round(selection.w * 100)}% × {Math.round(selection.h * 100)}% at {Math.round(selection.x * 100)}%, {Math.round(selection.y * 100)}%).
+                </p>
+              </div>
+
+              <ImageDropzone onFiles={handleBatchFiles} multiple disabled={batchProcessing} />
+
+              {batchItems.length > 0 && (
+                <>
+                  <div className="space-y-2">
+                    {batchItems.map((item) => (
+                      <div key={item.id} className="flex items-start gap-3 rounded-lg border border-gray-100 dark:border-gray-800 p-3">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={item.status === 'done' && item.outputUrl ? item.outputUrl : item.previewUrl}
+                          alt=""
+                          aria-hidden="true"
+                          className="h-12 w-12 rounded-md object-cover shrink-0 border border-gray-100 dark:border-gray-700"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{item.file.name}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{item.naturalW} × {item.naturalH}px</p>
+                          {item.status === 'done' && item.result && (
+                            <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                              {item.result.outputWidth} × {item.result.outputHeight}px · {formatFileSize(item.result.blob.size)}
+                            </p>
+                          )}
+                          {item.status === 'processing' && (
+                            <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5" role="status">Processing…</p>
+                          )}
+                          {item.status === 'failed' && (
+                            <p className="text-xs text-red-600 dark:text-red-400 mt-0.5" role="alert">{item.error}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {item.status === 'done' && item.outputUrl && item.result && (
+                            <ImageDownloadButton
+                              url={item.outputUrl}
+                              filename={outputFilename(item.file.name, item.result.format, '_cropped')}
+                              label="↓"
+                              className="!px-2 !py-1 text-xs"
+                            />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeBatchItem(item.id)}
+                            aria-label={`Remove ${item.file.name}`}
+                            disabled={batchProcessing}
+                            className="p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-40"
+                          >
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex flex-wrap gap-3">
+                    {!batchProcessing && batchItems.some((b) => b.status === 'queued' || b.status === 'failed') && (
+                      <button
+                        type="button"
+                        onClick={handleBatchCrop}
+                        className="rounded-lg bg-violet-600 hover:bg-violet-700 text-white px-5 py-2.5 text-sm font-medium transition-colors"
+                      >
+                        Crop {batchItems.filter((b) => b.status === 'queued' || b.status === 'failed').length} image{batchItems.filter((b) => b.status === 'queued' || b.status === 'failed').length !== 1 ? 's' : ''}
+                      </button>
+                    )}
+                    {batchProcessing && (
+                      <button
+                        type="button"
+                        onClick={() => { batchAbortRef.current?.abort(); setBatchProcessing(false); }}
+                        className="rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-5 py-2.5 text-sm font-medium transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                    {batchItems.some((b) => b.status === 'done') && !batchProcessing && (
+                      <button
+                        type="button"
+                        onClick={downloadBatchAll}
+                        className="rounded-lg border border-violet-300 dark:border-violet-700 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-950/20 px-5 py-2.5 text-sm font-medium transition-colors"
+                      >
+                        Download all as ZIP
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
     </ImageToolLayout>
