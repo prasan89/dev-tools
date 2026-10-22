@@ -209,7 +209,9 @@ export async function compressImage(
         } else {
           high = quality;
         }
-        if (delta <= Math.max(512, targetBytes * 0.01)) break;
+        // Do not stop on a slightly oversized candidate: a lower quality may still
+        // fit under the requested limit, which is preferable for target-size mode.
+        if (candidate.size <= targetBytes && delta <= Math.max(512, targetBytes * 0.01)) break;
       }
       blob = bestUnderTarget ?? closest ?? await canvasToBlob(canvas, mime, requestedQuality);
     } else {
