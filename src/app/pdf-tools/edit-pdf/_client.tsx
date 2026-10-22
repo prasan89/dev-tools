@@ -19,7 +19,7 @@ type Mark = {
 };
 type Point = { x: number; y: number };
 type RenderInfo = { width: number; height: number; pageWidth: number; pageHeight: number; scale: number };
-type ExistingText = { id: string; page: number; x: number; y: number; width: number; height: number; text: string; fontSize: number };
+type ExistingText = { id: string; page: number; x: number; y: number; width: number; height: number; text: string; fontSize: number; bold: boolean; italic: boolean; fontFamily: string };
 
 const SCALE = 1.25;
 
@@ -96,6 +96,8 @@ export default function EditPdfClient() {
         await pdfPage.render({ canvas, canvasContext: ctx, viewport, transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined }).promise;
         const textContent = await pdfPage.getTextContent();
         const textRuns: ExistingText[] = [];
+        const measureCanvas = document.createElement('canvas');
+        const measureContext = measureCanvas.getContext('2d');
         for (const item of textContent.items) {
           if (!('str' in item) || !item.str.trim() || !('transform' in item)) continue;
           const transform = pdfjs.Util.transform(viewport.transform, item.transform);
@@ -103,16 +105,46 @@ export default function EditPdfClient() {
           const itemWidth = Math.max(4, item.width * SCALE);
           const left = transform[4];
           const top = transform[5] - itemHeight;
-          textRuns.push({
-            id: crypto.randomUUID(),
-            page: page - 1,
-            x: left / SCALE,
-            y: unitViewport.height - (top + itemHeight) / SCALE,
-            width: itemWidth / SCALE,
-            height: itemHeight / SCALE,
-            text: item.str,
-            fontSize: Math.max(6, itemHeight / SCALE),
-          });
+          const fontSize = Math.max(6, itemHeight / SCALE);
+          const style = textContent.styles[item.fontName];
+          const fontFamily = style?.fontFamily || 'Helvetica, Arial, sans-serif';
+          // PDF.js keeps the source font descriptor in commonObjs. Its flags
+          // are more reliable than the generated font id (e.g. g_d0_f3).
+          let sourceFont: { name?: string; loadedName?: string; isBold?: boolean; isItalic?: boolean } | undefined;
+          try {
+            sourceFont = pdfPage.commonObjs.get(item.fontName) as typeof sourceFont;
+          } catch {
+            sourceFont = undefined;
+          }
+          const fontLabel = [item.fontName, sourceFont?.name, sourceFont?.loadedName, fontFamily].filter(Boolean).join(' ').toLowerCase();
+          const bold = sourceFont?.isBold ?? /bold|black|heavy|semibold|demi/.test(fontLabel);
+          const italic = sourceFont?.isItalic ?? /italic|oblique/.test(fontLabel);
+          const tokens = item.str.match(/\\S+|\\s+/g) ?? [item.str];
+          if (measureContext) measureContext.font = `${italic ? 'italic ' : ''}${bold ? 'bold ' : ''}${fontSize}px ${fontFamily}`;
+          const tokenWidths = tokens.map((token) => measureContext?.measureText(token).width ?? token.length);
+          const measuredTotal = tokenWidths.reduce((sum, width) => sum + width, 0) || 1;
+          const widthScale = itemWidth / measuredTotal;
+          let offset = 0;
+          for (let index = 0; index < tokens.length; index++) {
+            const token = tokens[index];
+            const tokenWidth = tokenWidths[index] * widthScale;
+            if (token.trim()) {
+              textRuns.push({
+                id: crypto.randomUUID(),
+                page: page - 1,
+                x: (left + offset) / SCALE,
+                y: unitViewport.height - (top + itemHeight) / SCALE,
+                width: Math.max(2, tokenWidth / SCALE),
+                height: itemHeight / SCALE,
+                text: token,
+                fontSize,
+                bold,
+                italic,
+                fontFamily,
+              });
+            }
+            offset += tokenWidth;
+          }
         }
         if (!cancelled) {
           setExistingText(textRuns);
@@ -289,14 +321,19 @@ export default function EditPdfClient() {
     setError('');
     try {
       const pdf = await PDFDocument.load(fileBytes.slice(0));
-      const helvetica = await pdf.embedFont(StandardFonts.Helvetica);
+      const fonts = {
+        regular: await pdf.embedFont(StandardFonts.Helvetica),
+        bold: await pdf.embedFont(StandardFonts.HelveticaBold),
+        italic: await pdf.embedFont(StandardFonts.HelveticaOblique),
+        boldItalic: await pdf.embedFont(StandardFonts.HelveticaBoldOblique),
+      };
       const pages = pdf.getPages();
       for (const mark of marks) {
         const target = pages[mark.page];
         if (!target) continue;
         const c = hexRgb(mark.color);
         if (mark.type === 'text') {
-          target.drawText(mark.text, { x: mark.x, y: mark.y, size: mark.fontSize, font: helvetica, color: c, maxWidth: Math.max(10, mark.width), lineHeight: mark.fontSize * 1.25 });
+          target.drawText(mark.text, { x: mark.x, y: mark.y, size: mark.fontSize, font: fonts.regular, color: c, maxWidth: Math.max(10, mark.width), lineHeight: mark.fontSize * 1.25 });
         } else if (mark.type === 'rect') {
           target.drawRectangle({ x: mark.x, y: mark.y, width: mark.width, height: mark.height, borderColor: c, borderWidth: 1.5, color: rgb(1, 1, 1), opacity: 0, borderOpacity: 1 });
         } else if (mark.type === 'highlight') {
@@ -321,7 +358,9 @@ export default function EditPdfClient() {
               x: selectedExistingText.x,
               y: selectedExistingText.y + Math.max(0, (selectedExistingText.height - selectedExistingText.fontSize) / 2),
               size: selectedExistingText.fontSize,
-              font: helvetica,
+              font: selectedExistingText.bold
+                ? (selectedExistingText.italic ? fonts.boldItalic : fonts.bold)
+                : (selectedExistingText.italic ? fonts.italic : fonts.regular),
               color: rgb(0, 0, 0),
               maxWidth: Math.max(10, selectedExistingText.width * 3),
             });
@@ -381,7 +420,7 @@ export default function EditPdfClient() {
                   const left = item.x * renderInfo.scale;
                   const top = (renderInfo.pageHeight - item.y - item.height) * renderInfo.scale;
                   const active = selectedExistingText?.id === item.id;
-                  return <button key={item.id} type="button" title="Select existing PDF text to replace it" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setSelectedExistingText(item); setReplacementText(item.text); setSelectedId(null); }} style={{ position: 'absolute', left, top, width: Math.max(4, item.width * renderInfo.scale), height: Math.max(8, item.height * renderInfo.scale), padding: 0, margin: 0, overflow: 'hidden', whiteSpace: 'nowrap', textAlign: 'left', fontSize: Math.max(8, item.fontSize * renderInfo.scale), lineHeight: 1, color: 'transparent', background: active ? 'rgba(37,99,235,.22)' : 'transparent', border: active ? '1px solid #2563eb' : '1px solid transparent', cursor: 'text' }} aria-label={'Select existing text: ' + item.text}>{item.text}</button>;
+                  return <button key={item.id} type="button" title="Select existing PDF text to replace it" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setSelectedExistingText(item); setReplacementText(item.text); setSelectedId(null); }} style={{ position: 'absolute', left, top, width: Math.max(4, item.width * renderInfo.scale), height: Math.max(8, item.height * renderInfo.scale), padding: 0, margin: 0, overflow: 'hidden', whiteSpace: 'nowrap', textAlign: 'left', fontSize: Math.max(8, item.fontSize * renderInfo.scale), fontFamily: item.fontFamily, fontWeight: item.bold ? 700 : 400, fontStyle: item.italic ? 'italic' : 'normal', lineHeight: 1, color: 'transparent', background: active ? 'rgba(37,99,235,.22)' : 'transparent', border: active ? '1px solid #2563eb' : '1px solid transparent', cursor: 'text' }} aria-label={'Select existing text: ' + item.text}>{item.text}</button>;
                 })}
                 {renderInfo && marks.filter((mark) => mark.page === page - 1).map((mark) => {
                   const box = screenBox(mark, renderInfo);
