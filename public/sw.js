@@ -5,7 +5,7 @@
 // Cache versioning: bump CACHE_VERSION when deploying breaking changes to the SW
 // so old caches are cleaned up on activation.
 
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const CACHE_NAME = `devtoolshub-${CACHE_VERSION}`;
 
 self.addEventListener('install', (event) => {
