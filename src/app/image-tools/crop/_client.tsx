@@ -178,7 +178,7 @@ function CropCanvas({
       ctx.lineTo(x + w, y + (h * i) / 3);
       ctx.stroke();
     }
-    const handle = 7 * (window.devicePixelRatio || 1);
+    const handle = 7 * Math.min(window.devicePixelRatio || 1, 2);
     ctx.fillStyle = '#7c3aed';
     [[x, y], [x + w - handle, y], [x, y + h - handle], [x + w - handle, y + h - handle]].forEach(([hx, hy]) => {
       ctx.fillRect(hx, hy, handle, handle);
@@ -194,9 +194,12 @@ function CropCanvas({
       imgRef.current = img;
       const canvas = canvasRef.current;
       if (!canvas) return;
-      const cssWidth = canvas.clientWidth || Math.min(naturalW, 900);
+      const availableWidth = canvas.parentElement?.clientWidth || Math.min(naturalW, 900);
+      const cssWidth = Math.min(availableWidth, 900, naturalW);
       const cssHeight = (cssWidth * naturalH) / naturalW;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.style.width = `${cssWidth}px`;
+      canvas.style.maxWidth = '100%';
       canvas.style.aspectRatio = `${naturalW} / ${naturalH}`;
       canvas.style.height = `${cssHeight}px`;
       canvas.width = Math.max(1, Math.round(cssWidth * dpr));
