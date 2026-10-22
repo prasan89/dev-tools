@@ -126,13 +126,18 @@ async function extractPageTextItems(
     const t = item.transform as number[];
     const scaleX = Math.abs(t[0]);
     const scaleY = Math.abs(t[3]);
-    const fontSize = Math.max(scaleX, scaleY);
+    // PDF.js exposes the text item's measured height separately from its
+    // transform matrix. The horizontal scale can be much larger than the
+    // actual font size (for example, horizontally scaled headings), so don't
+    // infer font size from max(scaleX, scaleY).
+    const measuredHeight = Math.abs((item as { height?: number }).height ?? 0);
+    const fontSize = Math.max(1, measuredHeight || scaleY || scaleX);
     const x = t[4];
-    // t[5] is the baseline Y in PDF coords (bottom-left origin).
-    // Use fontSize as the glyph height; y = baseline - fontSize gives the bottom of the glyph.
+    // t[5] is the baseline Y in PDF user space (bottom-left origin).
+    // Keep the hit target and inline editor anchored to the same glyph box.
     const itemH = fontSize;
     const y = t[5] - itemH;
-    const w = (item as { width?: number }).width ?? scaleX * item.str.length;
+    const w = Math.max(0, (item as { width?: number }).width ?? scaleX * item.str.length);
     items.push({ id: `pdftext-${idx++}`, text: item.str, x, y, width: w, height: itemH, fontSize });
   }
   return items;
@@ -289,10 +294,7 @@ function PdfTextInlineEditor({
   const committedRef = useRef(false);
 
   const initialRect = pdfRectToScreen(
-    item.x, item.y,
-    Math.max(item.width, 120 / pageScale),
-    Math.max(item.fontSize * 1.5, 24 / pageScale),
-    pageScale, pageDims.heightPt,
+    item.x, item.y, item.width, item.fontSize, pageScale, pageDims.heightPt,
   );
   const [boxLeft, setBoxLeft] = useState(initialRect.left);
   const [boxTop, setBoxTop] = useState(initialRect.top);
