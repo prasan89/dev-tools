@@ -62,27 +62,6 @@ const nextConfig: NextConfig = {
         source: "/(.*)",
         headers: securityHeaders,
       },
-      // Immutable cache for content-hashed Next.js static assets.
-      // These filenames change on every build so 1-year immutable is safe.
-      {
-        source: "/_next/static/(.*)",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
-          },
-        ],
-      },
-      // Fonts cached for 1 year (stable filenames)
-      {
-        source: "/fonts/(.*)",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
-          },
-        ],
-      },
       // Sitemap/robots — short cache so changes propagate
       {
         source: "/(sitemap.xml|robots.txt)",
@@ -112,6 +91,28 @@ const nextConfig: NextConfig = {
           {
             key: "Cache-Control",
             value: "public, s-maxage=3600, stale-while-revalidate=86400",
+          },
+        ],
+      },
+      // Immutable cache for content-hashed Next.js static assets — MUST come last
+      // so it overrides the s-maxage=3600 rule above. Filenames change on every
+      // build so a 1-year immutable cache is safe.
+      {
+        source: "/_next/static/(.*)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      // Fonts cached for 1 year (stable filenames)
+      {
+        source: "/fonts/(.*)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
           },
         ],
       },
