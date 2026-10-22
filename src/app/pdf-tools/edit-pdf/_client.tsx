@@ -19,6 +19,7 @@ type Mark = {
 };
 type Point = { x: number; y: number };
 type RenderInfo = { width: number; height: number; pageWidth: number; pageHeight: number; scale: number };
+type ExistingText = { id: string; page: number; x: number; y: number; width: number; height: number; text: string; fontSize: number };
 
 const SCALE = 1.25;
 
@@ -42,6 +43,9 @@ export default function EditPdfClient() {
   const [pageCount, setPageCount] = useState(0);
   const [page, setPage] = useState(1);
   const [renderInfo, setRenderInfo] = useState<RenderInfo | null>(null);
+  const [existingText, setExistingText] = useState<ExistingText[]>([]);
+  const [selectedExistingText, setSelectedExistingText] = useState<ExistingText | null>(null);
+  const [replacementText, setReplacementText] = useState('');
   const [tool, setTool] = useState<Tool>('select');
   const [marks, setMarks] = useState<Mark[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -90,7 +94,28 @@ export default function EditPdfClient() {
         canvas.style.height = viewport.height + 'px';
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         await pdfPage.render({ canvas, canvasContext: ctx, viewport, transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined }).promise;
+        const textContent = await pdfPage.getTextContent();
+        const textRuns: ExistingText[] = [];
+        for (const item of textContent.items) {
+          if (!('str' in item) || !item.str.trim() || !('transform' in item)) continue;
+          const transform = pdfjs.Util.transform(viewport.transform, item.transform);
+          const itemHeight = Math.max(8, Math.abs(transform[3]) || (item.height * SCALE));
+          const itemWidth = Math.max(4, item.width * SCALE);
+          const left = transform[4];
+          const top = transform[5] - itemHeight;
+          textRuns.push({
+            id: crypto.randomUUID(),
+            page: page - 1,
+            x: left / SCALE,
+            y: unitViewport.height - (top + itemHeight) / SCALE,
+            width: itemWidth / SCALE,
+            height: itemHeight / SCALE,
+            text: item.str,
+            fontSize: Math.max(6, itemHeight / SCALE),
+          });
+        }
         if (!cancelled) {
+          setExistingText(textRuns);
           setRenderInfo({ width: viewport.width, height: viewport.height, pageWidth: unitViewport.width, pageHeight: unitViewport.height, scale: SCALE });
         }
         pdfPage.cleanup();
@@ -124,6 +149,9 @@ export default function EditPdfClient() {
       setHistory([]);
       setFuture([]);
       setSelectedId(null);
+      setExistingText([]);
+      setSelectedExistingText(null);
+      setReplacementText('');
       setRenderInfo(null);
     } catch {
       setError('Could not read this PDF file.');
@@ -256,6 +284,29 @@ export default function EditPdfClient() {
           target.drawLine({ start: { x: mark.x, y: mark.y }, end: { x: mark.x + mark.width, y: mark.y + mark.height }, thickness: 2, color: c });
         }
       }
+      if (selectedExistingText && replacementText !== selectedExistingText.text) {
+        const target = pages[selectedExistingText.page];
+        if (target) {
+          target.drawRectangle({
+            x: selectedExistingText.x,
+            y: selectedExistingText.y,
+            width: selectedExistingText.width,
+            height: selectedExistingText.height,
+            color: rgb(1, 1, 1),
+            borderWidth: 0,
+          });
+          if (replacementText.trim()) {
+            target.drawText(replacementText, {
+              x: selectedExistingText.x,
+              y: selectedExistingText.y + Math.max(0, (selectedExistingText.height - selectedExistingText.fontSize) / 2),
+              size: selectedExistingText.fontSize,
+              font: helvetica,
+              color: rgb(0, 0, 0),
+              maxWidth: Math.max(10, selectedExistingText.width * 3),
+            });
+          }
+        }
+      }
       const bytes = await pdf.save();
       const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
@@ -305,6 +356,12 @@ export default function EditPdfClient() {
             <div className="flex justify-center">
               <div ref={stageRef} onPointerDown={onStagePointerDown} onPointerMove={onStagePointerMove} onPointerUp={finishPointer} onPointerCancel={finishPointer} className="relative shrink-0 bg-white shadow-lg" style={{ width: renderInfo?.width ?? 'auto', height: renderInfo?.height ?? 'auto', touchAction: 'none', cursor: tool === 'select' ? 'default' : 'crosshair' }}>
                 <canvas ref={canvasRef} className="block" />
+                {renderInfo && tool === 'select' && existingText.filter((item) => item.page === page - 1).map((item) => {
+                  const left = item.x * renderInfo.scale;
+                  const top = (renderInfo.pageHeight - item.y - item.height) * renderInfo.scale;
+                  const active = selectedExistingText?.id === item.id;
+                  return <button key={item.id} type="button" title="Select existing PDF text to replace it" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setSelectedExistingText(item); setReplacementText(item.text); setSelectedId(null); }} style={{ position: 'absolute', left, top, width: Math.max(4, item.width * renderInfo.scale), height: Math.max(8, item.height * renderInfo.scale), padding: 0, margin: 0, overflow: 'hidden', whiteSpace: 'nowrap', textAlign: 'left', fontSize: Math.max(8, item.fontSize * renderInfo.scale), lineHeight: 1, color: 'transparent', background: active ? 'rgba(37,99,235,.22)' : 'transparent', border: active ? '1px solid #2563eb' : '1px solid transparent', cursor: 'text' }} aria-label={'Select existing text: ' + item.text}>{item.text}</button>;
+                })}
                 {renderInfo && marks.filter((mark) => mark.page === page - 1).map((mark) => {
                   const box = screenBox(mark, renderInfo);
                   const active = selectedId === mark.id;
@@ -338,6 +395,13 @@ export default function EditPdfClient() {
           </div>
           <aside className="h-fit rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Properties</h2>
+            {selectedExistingText && <div className="mt-3 space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Replace existing text</p>
+              <p className="text-xs text-gray-500">Selected text: “{selectedExistingText.text}”</p>
+              <label className="block text-xs text-gray-500">Replacement text<textarea value={replacementText} onChange={(event) => setReplacementText(event.target.value)} rows={4} className="mt-1 w-full rounded border border-gray-300 p-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white" /></label>
+              <button type="button" onClick={() => { setSelectedExistingText(null); setReplacementText(''); }} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">Cancel text replacement</button>
+              <p className="text-xs text-gray-500">Export covers the selected text with a white background and writes the replacement over it. This works best on white page backgrounds.</p>
+            </div>}
             {!selected && <p className="mt-3 text-sm text-gray-500">Select an added object to edit its properties.</p>}
             {selected && <div className="mt-3 space-y-3">
               <p className="text-xs uppercase tracking-wide text-gray-500">{selected.type}</p>
@@ -353,7 +417,7 @@ export default function EditPdfClient() {
             </div>}
           </aside>
         </div>}
-        <p className="text-xs text-gray-500">This editor adds new text and annotations over the original page. It does not rewrite existing PDF text. Files stay on your device.</p>
+        <p className="text-xs text-gray-500">Select an existing text fragment to replace it, or add text and annotations. Replacement covers the original fragment with white; complex layouts and non-white backgrounds may need manual touch-up. Files stay on your device.</p>
       </div>
     </PdfToolLayout>
   );
