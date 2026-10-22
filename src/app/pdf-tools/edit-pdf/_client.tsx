@@ -21,7 +21,6 @@ type Point = { x: number; y: number };
 type RenderInfo = { width: number; height: number; pageWidth: number; pageHeight: number; scale: number };
 
 const SCALE = 1.25;
-const COLORS = ['#ef4444', '#2563eb', '#16a34a', '#f59e0b', '#111827'];
 
 function hexRgb(hex: string) {
   const value = hex.replace('#', '');
@@ -89,8 +88,8 @@ export default function EditPdfClient() {
         canvas.height = Math.floor(viewport.height * dpr);
         canvas.style.width = viewport.width + 'px';
         canvas.style.height = viewport.height + 'px';
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        await pdfPage.render({ canvas, canvasContext: ctx, viewport }).promise;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        await pdfPage.render({ canvas, canvasContext: ctx, viewport, transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined }).promise;
         if (!cancelled) {
           setRenderInfo({ width: viewport.width, height: viewport.height, pageWidth: unitViewport.width, pageHeight: unitViewport.height, scale: SCALE });
         }
@@ -309,7 +308,12 @@ export default function EditPdfClient() {
                   const box = screenBox(mark, renderInfo);
                   const active = selectedId === mark.id;
                   const common: React.CSSProperties = { position: 'absolute', left: box.left, top: box.top, width: box.width, height: box.height, boxSizing: 'border-box', cursor: tool === 'select' ? 'move' : 'default', outline: active ? '2px solid #2563eb' : 'none', touchAction: 'none' };
-                  if (mark.type === 'text') return <textarea key={mark.id} data-mark-id={mark.id} aria-label="Added PDF text" value={mark.text} onChange={(event) => commitMarks(marks.map((item) => item.id === mark.id ? { ...item, text: event.target.value } : item))} onFocus={() => setSelectedId(mark.id)} onPointerDown={(event) => { if (tool === 'select') { event.stopPropagation(); const point = getPoint(event); if (point) { setSelectedId(mark.id); dragRef.current = { id: mark.id, start: point, x: mark.x, y: mark.y }; } } }} style={{ ...common, border: '1px dashed ' + mark.color, background: 'rgba(255,255,255,.78)', color: mark.color, fontSize: mark.fontSize * renderInfo.scale, lineHeight: 1.25, padding: 2, resize: 'both', overflow: 'auto' }} />;
+                  if (mark.type === 'text') return (
+                    <div key={mark.id} data-mark-id={mark.id} style={{ ...common, outline: active ? '2px solid #2563eb' : '1px dashed ' + mark.color, background: 'rgba(255,255,255,.78)' }}>
+                      <div data-mark-id={mark.id} title="Drag to move text" style={{ position: 'absolute', left: 0, right: 0, top: -9, height: 8, background: active ? '#2563eb' : mark.color, cursor: 'move', opacity: active ? 1 : 0.45 }} />
+                      <textarea aria-label="Added PDF text" value={mark.text} onChange={(event) => commitMarks(marks.map((item) => item.id === mark.id ? { ...item, text: event.target.value } : item))} onFocus={() => setSelectedId(mark.id)} onPointerDown={(event) => event.stopPropagation()} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', boxSizing: 'border-box', border: 'none', outline: 'none', background: 'transparent', color: mark.color, fontSize: mark.fontSize * renderInfo.scale, lineHeight: 1.25, padding: 2, resize: 'none', overflow: 'auto' }} />
+                    </div>
+                  );
                   if (mark.type === 'highlight') return <div key={mark.id} data-mark-id={mark.id} onClick={() => setSelectedId(mark.id)} style={{ ...common, background: mark.color, opacity: 0.3, border: active ? '1px solid #2563eb' : '1px solid transparent' }} />;
                   if (mark.type === 'rect') return <div key={mark.id} data-mark-id={mark.id} onClick={() => setSelectedId(mark.id)} style={{ ...common, border: '2px solid ' + mark.color, background: 'transparent' }} />;
                   return <svg key={mark.id} data-mark-id={mark.id} onClick={() => setSelectedId(mark.id)} style={{ position: 'absolute', left: Math.min(mark.x, mark.x + mark.width) * renderInfo.scale, top: (renderInfo.pageHeight - Math.max(mark.y, mark.y + mark.height)) * renderInfo.scale, width: Math.max(2, Math.abs(mark.width) * renderInfo.scale), height: Math.max(2, Math.abs(mark.height) * renderInfo.scale), overflow: 'visible', pointerEvents: 'auto' }}><line x1={mark.width < 0 ? Math.abs(mark.width) * renderInfo.scale : 0} y1={mark.height > 0 ? 0 : Math.abs(mark.height) * renderInfo.scale} x2={mark.width < 0 ? 0 : Math.abs(mark.width) * renderInfo.scale} y2={mark.height > 0 ? Math.abs(mark.height) * renderInfo.scale : 0} stroke={mark.color} strokeWidth="2" /></svg>;
