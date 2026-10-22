@@ -68,7 +68,7 @@ export default function WatermarkClient() {
         <label className="block text-sm">Size<input type="range" min="12" max="72" value={size} onChange={e=>setSize(Number(e.target.value))} className="mt-2 w-full" /></label>
         <label className="block text-sm">Position<select value={position} onChange={e=>setPosition(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-800"><option value="top-left">Top left</option><option value="top-right">Top right</option><option value="center">Center</option><option value="bottom-left">Bottom left</option><option value="bottom-right">Bottom right</option></select></label>
         <button onClick={() => void process()} className="w-full rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">Apply watermark</button>
-        {output && <ImageDownloadButton url={output} filename={file.name.replace(/\.[^.]+$/, '') + '-watermarked.' + (file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg')} className="w-full justify-center" />}
+        {output && <ImageDownloadButton url={output} filename={file!.name.replace(/\.[^.]+$/, '') + '-watermarked.' + (file!.type === 'image/png' ? 'png' : file!.type === 'image/webp' ? 'webp' : 'jpg')} className="w-full justify-center" />}
         {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       </section></div>}
       <p className="text-xs text-gray-500">For best results, choose a watermark color with enough contrast. Image files are never uploaded.</p>
